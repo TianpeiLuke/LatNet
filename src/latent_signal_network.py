@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+#from numpy.linalg import eigvalsh, eigh
+from scipy.sparse.linalg import eigsh
 import networkx as nx
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d.art3d as art3d
@@ -27,9 +29,17 @@ class latent_signal_network:
         except KeyError:
             self.model_name = newman
 
+        try:
+            self.k_u = option['cutoff_freq']
+        except KeyError:
+            self.k_u = 10
+
         self.prob = prob
         self.size = size
+        # if already written 
         self.ifwrite = False
+
+        # random graph generate
         if self.model_name == 'partition':
             [self.p_in, self.p_out] = prob
             self.n = sum(self.size)
@@ -65,6 +75,17 @@ class latent_signal_network:
             self.pos = nx.nx_pydot.graphviz_layout(G)
             nx.draw(G, pos=self.pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*self.n, font_color='w')
             
+        elif self.model_name == 'tree':
+            try:
+                self.gamma = option['gamma']
+            except KeyError:
+                self.gamma = 3
+            tries = 10000
+            self.n = self.size
+            G = nx.random_powerlaw_tree(n=self.size, gamma=self.gamma, seed= self.seed, tries=tries)
+            self.pos = nx.nx_pydot.graphviz_layout(G)
+            nx.draw(G, pos=self.pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*self.n, font_color='w')
+        
         G_out = nx.Graph()
         # node initialization 
         G_out.add_nodes_from(G.nodes(), attributes=np.zeros((self.node_dim,)).T)
@@ -75,6 +96,12 @@ class latent_signal_network:
         
         self.G = G_out
         self.X = np.ndarray((self.n, self.node_dim))
+        # the normalized graph laplacian and its eigen decomposition 
+        self.L = nx.normalized_laplacian_matrix(self.G)
+        self.L_eig, self.U = eigsh(self.L, k=self.k_u, which='SM')
+        self.L_eig = self.L_eig.real
+        self.L_eig = self.L_eig[1:self.k_u]
+        self.U     = self.U[:,1:self.k_u]
 
 
     def graph_build(self, size, prob, option, save_fig=False):
@@ -177,6 +204,19 @@ class latent_signal_network:
             if save_fig == True:
                 fig1.savefig(filename, format="eps")
         
+        elif option['model'] == 'tree':
+            try:
+                gamma = option['gamma']
+            except KeyError:
+                gamma = 3
+            tries = 10000
+            G = nx.random_powerlaw_tree(n=size, gamma=gamma, seed=seed, tries=tries)
+            pos = nx.nx_pydot.graphviz_layout(G)
+            fig1 = plt.figure(1)
+            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*size, font_color='w')
+            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+            if save_fig == True:
+                fig1.savefig(filename, format="eps")
     
         G_out = nx.Graph()
         # node initialization 
@@ -268,6 +308,55 @@ class latent_signal_network:
             self.ifwrite = False 
 
         return [G, X, hist_tv]
+
+
+    def graph_fourier_transform(self, X, show_fig=False, save_fig=False, overwrite=False):
+        U_k = self.U
+        gft = np.dot(U_k.T, X)
+        if overwrite: self.X_f = gft
+        if show_fig:
+            fig = plt.figure(figsize=(15, 6))
+            ax1  = fig.add_subplot(1,2,1)
+            val  = X[:,0]
+            markerline, stemlines, baseline = plt.stem(np.arange(len(val)), val,'b')
+            plt.xlim([-0.1, len(val)+0.1])
+            plt.xlabel('node index')
+            plt.ylabel('graph signal')
+
+            ax2 =  fig.add_subplot(1,2,2)
+            val =  gft[:,0]
+            markerline2, stemlines2, baseline2 = plt.stem(np.arange(len(val)),val,'b')
+            plt.xlim([-0.1, len(val)+0.1])
+            plt.xlabel('graph freq. comp')
+            plt.ylabel('magnitude of graph Fourier transform')
+
+            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_gft.eps"
+            if save_fig :
+                fig.savefig(filename, format="eps")
+                 
+
+        return gft
+
+
+    def inference_hidden_graph_regul(self, sigma, init_X=None):
+        # find the latent variables in factor analysis model
+        #   h = arg min 0.5*|| x - U*h||**2 + (0.5/sigma**2)*h.T*Lambda*h 
+        if init_X is not None:
+            X = init_X
+        else: 
+            if self.ifwrite:
+                X = self.X
+            else:
+                X = np.random.randn(self.n, self.node_dim)
+    
+
+        U_k = self.U#[:, 0:self.k_u]
+        lambda_k = self.L_eig#[0:self.k_u]
+        shinkage = lambda_k/sigma**2 + np.ones(lambda_k.shape)
+
+        h = (np.dot(U_k.T, X).T/shinkage).T
+        return h
+
 
     def get_node_attributes(self, G):
         n = len(G)
