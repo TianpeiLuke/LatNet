@@ -289,3 +289,33 @@ def _partial_energy(G, u, state):
         partial_energy += G[u][v]['weight']*s_v
     partial_energy += G.node[u]['attributes']
     return partial_energy
+
+def ising_show_animate(hist, save_anime=False):
+    fig = plt.figure(4)
+    ax = fig.add_subplot(111)
+    cax = ax.matshow(hist[0], vmin=-1, vmax=1)
+
+    def animate(i):
+        #print(i)
+        cax.set_data(hist[i])  # update the data
+        return cax,
+
+
+    # Init only required for blitting to give a clean slate.
+    def init():
+        cax.set_data(hist[0]) 
+        return cax,
+    # call the animator.  blit=True means only re-draw the parts that have changed.
+    anim = animation.FuncAnimation(fig, animate, init_func=init,
+                               frames=len(hist), interval=10, blit=True)
+
+    # save the animation as an mp4.  This requires ffmpeg or mencoder to be
+    # installed.  The extra_args ensure that the x264 codec is used, so that
+    # the video can be embedded in html5.  You may need to adjust this for
+    # your system: for more information, see
+    # http://matplotlib.sourceforge.net/api/animation_api.html
+    if save_anime: 
+        filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_isingState"+".mp4"
+        anim.save(filename, fps=30, extra_args=['-vcodec', 'libx264']) 
+
+    plt.show()
