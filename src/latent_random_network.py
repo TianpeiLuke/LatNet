@@ -1,7 +1,7 @@
 
 # -*- coding: utf-8 -*-
-
 import numpy as np
+import pymc as pm
 #from numpy.linalg import eigvalsh, eigh
 from scipy.sparse.linalg import eigsh
 import networkx as nx
@@ -12,9 +12,37 @@ from time import gmtime, strftime
 
 class latent_random_field:
 
+    def __init__ (self, size, prob, option):
+
+        try:
+            self.seed = option['seed']
+        except KeyError:
+            self.seed = None
+
+        try:
+            self.node_dim = option['node_dim']
+        except KeyError:
+            self.node_dim = 2
+
+        try:
+            self.model_name = option['model']
+        except KeyError:
+            self.model_name = 'tree'
+
+        try:
+            self.k_u = option['cutoff_freq']
+        except KeyError:
+            self.k_u = 10
+
+        self.prob = prob
+        self.size = size
+        # if already written 
 
 
 
+
+
+   #===================================================================
 
     def graph_build(self, size, prob, option, save_fig=False):
         '''
@@ -113,7 +141,8 @@ class latent_random_field:
             if type(size) == int:
                 size = [size, size]
             G = nx.grid_2d_graph(m=size[0], n=size[1])
-            pos = nx.nx_pydot.graphviz_layout(G)
+            #pos = nx.spring_layout(G) #nx.fruchterman_reingold_layout(G) #nx.nx_pydot.graphviz_layout(G)
+            pos = dict(zip(G.nodes(), [np.asarray(u) for u in G.nodes()]))
             fig1 = plt.figure(1)
             nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*sum(size), font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
@@ -136,16 +165,17 @@ class latent_random_field:
     
         G_out = nx.Graph()
         # node initialization 
-        G_out.add_nodes_from(G.nodes(), attributes=np.zeros((node_dim,)).T)
+        G_out.add_nodes_from(G.nodes(), attributes=np.ones((node_dim,)).T)
         G_out.add_edges_from(G.edges())
+        nx.set_edge_attributes(G_out, 'weight', 1) #np.random.rand(1))
         # assign weight values 
-        for u, v, e in G_out.edges(data=True):
-            e['weight'] = 1
+        #for u, v, e in G_out.edges(data=True):
+        #    e['weight'] = np.random.rand(1)
 
         return G_out
 
 
-
+   #=============================================================================
 
     def get_node_attributes(self, G):
         n = len(G)
