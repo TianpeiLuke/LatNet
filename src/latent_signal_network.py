@@ -83,7 +83,7 @@ class latent_signal_network:
             tries = 10000
             self.n = self.size
             G = nx.random_powerlaw_tree(n=self.size, gamma=self.gamma, seed= self.seed, tries=tries)
-            self.pos = nx.nx_pydot.graphviz_layout(G)
+            self.pos = nx.circular_layout(G, dim=2, scale=1.0, center=None) #nx.shell_layout(G) #nx.spring_layout(G) #nx.nx_pydot.graphviz_layout(G)
             nx.draw(G, pos=self.pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*self.n, font_color='w')
         
         G_out = nx.Graph()
@@ -211,7 +211,7 @@ class latent_signal_network:
                 gamma = 3
             tries = 10000
             G = nx.random_powerlaw_tree(n=size, gamma=gamma, seed=seed, tries=tries)
-            pos = nx.nx_pydot.graphviz_layout(G)
+            pos = nx.circular_layout(G, dim=2, scale=1.0, center=None) #nx.shell_layout(G)#nx.spring_layout(G) #nx.nx_pydot.graphviz_layout(G)
             fig1 = plt.figure(1)
             nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*size, font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
@@ -239,7 +239,7 @@ class latent_signal_network:
 #        self.node_dim = 0
 
 
-    def smooth_gsignal_generate(self, G, T, sigma, show_plot=False, overwrite=False):
+    def smooth_gsignal_generate(self, G, T, sigma, alpha=0, show_plot=False, overwrite=False):
         '''
            generate the node attributes in the graph associated with the network topology.
          G = Graph with "attributes" data for each node 
@@ -252,6 +252,12 @@ class latent_signal_network:
         n = len(G)
         d = len(G.node[G.nodes()[0]]['attributes'])
         X = np.ndarray((n,d))
+
+        if alpha > 1 :
+            alpha = 1- np.exp(-alpha)
+        elif alpha < 0:
+            alpha = np.exp(alpha)
+
         for i, idx in enumerate(G.nodes()):
             d = len(G.node[idx]['attributes'])
             np.random.seed((i*13+7)%100)
@@ -276,7 +282,7 @@ class latent_signal_network:
             tempG = G.copy()
             for i, idx in enumerate(G.nodes()):
                 if len(tempG[idx]) != 0:
-                    G.node[idx]['attributes'] = sum([tempG.node[neighbor]['attributes'] for neighbor in tempG[idx]])/len(tempG[idx])
+                    G.node[idx]['attributes'] = (1-alpha)*sum([tempG.node[neighbor]['attributes'] for neighbor in tempG[idx]])/len(tempG[idx]) + alpha*tempG.node[idx]['attributes']
             
             # avoid all one features
             tempG2 = G.copy()
@@ -401,7 +407,7 @@ class latent_signal_network:
         return np.array([[pos[key][0], pos[key][1]] for key in pos])
 
 
-    def plot_node_3d(self, pos_coordinates, edge_list,  node_values, view_angle, nodeIdx, save_fig=False):  
+    def plot_node_3d(self, pos_coordinates, edge_list,  node_values, view_angle, nodeIdx, columnIdx=0, figIdx=0, save_fig=False):  
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1, projection='3d')
         [elev, azim] = view_angle
@@ -409,7 +415,7 @@ class latent_signal_network:
 
         x = pos_coordinates[:,0]
         y = pos_coordinates[:,1]
-        z = node_values[:,0]
+        z = node_values[:,columnIdx]
         # plot a zero-plane
         Sx= np.linspace(min(x), max(x), 100)
         Sy= np.linspace(min(y), max(y), 100)
@@ -440,9 +446,9 @@ class latent_signal_network:
         ax.set_ylim3d(min(y), max(y))
         ax.set_zlim3d(min([min(z),-1]), max([max(z), 1])) 
         plt.show()
-        #filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netNode.eps"
+        #filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netNode"+ str(figIdx) +".eps"
         #fig.savefig(filename, format='eps', dpi=1000)
         if save_fig == True:
-            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netNode.png"
+            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netNode"+ str(figIdx) +".png"
             fig.savefig(filename)
         
