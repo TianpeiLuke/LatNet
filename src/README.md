@@ -22,6 +22,6 @@ $$ where $\mathbf{J}\_{x,x}$ is inverse covariance matrix of the observed variab
 
 A graph constraint is superimposed on the inverse convariance structure so that the ___support___ of $\mathbf{J}\_{x,x}$ equals to the ___support___ of the adjacency matrix of the given graph $\mathcal{G}$. That is, the inverse covariance graph is equal to the given network. 
 
-In other words, the stochastic graph signal $x: \mathcal{V} \rightarrow \mathbb{R}$ evaluated at two non-adjacency vertices are conditional independence given all the neigboring nodes. 
+In other words, the stochastic graph signal $x: \mathcal{V} \rightarrow \mathbb{R}$ evaluated at two non-adjacency vertices are conditional independent given all the neigboring nodes. 
 
 $$ x\_{v_1} \bot x\_{v_2} | \mathbf{x}\_{\mathcal{N}(v_1)}, \quad  v_2 \not\in \mathcal{N}(v_1)  $$
