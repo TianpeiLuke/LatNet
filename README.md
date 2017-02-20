@@ -25,7 +25,7 @@ The scipt `PGMcommon.py` contains several classes of probabilistic grapical mode
    Implemented a Markov Random Field containing several independent sub-graph. Ech node is a binary variable and the edge potential is
 
    $$
-      P(v | Pa(v)) = \left\\{\\begin{array}{cc} -\infty& v+ \max(Pa(v))>1 \\\\ \beta\, v &\text{o.w.}\\end{array} \right. 
+      \log p(v | Pa(v)) \propto \left\\{\\begin{array}{cc} -\infty& v+ \max(Pa(v))>1 \\\\ \beta\, v &\text{o.w.}\\end{array} \right. 
    $$
   
 
