@@ -12,10 +12,13 @@ The scipt `PGMcommon.py` contains several classes of probabilistic grapical mode
 
    A directed Baysian network on $[0,1]^d$ where $d$ is the dimension of features and equals to the number of nodes in graph. A Sigmoid Belief Network defines each conditional probability as 
 
-$$ 
-    p(s_{i} = 1 | Pa(s_{i})) = \sigma\left(\mathbf{w}^{T}Pa(s_{i}) + \beta_{i} \right)  
 $$
-Use __pymc__ package
+   p(s_{1}, s_{2}, \ldots, s_{n}) = \prod p(s_{i}|Pa(s_{i}))
+$$
+$$
+   p(s_{i} = 1 | Pa(s_{i})) = \sigma\left(\mathbf{w}^{T}Pa(s_{i}) + \beta_{i} \right)  
+$$
+   Use __pymc__ package
 
   2. Independent Set Markov Chain Monte Carlo (`IndepSetMC`)
 
