@@ -23,7 +23,7 @@ The scipt `PGMcommon.py` contains several classes of probabilistic grapical mode
 
   2. Independent Set Markov Chain Monte Carlo (`IndepSetMC`)
 
-   Implemented a Markov Random Field containing several independent sub-graph. Ech node is a binary variable and the __edge potential__ is defined as 
+   Implemented a Markov Random Field containing several independent sub-graph. Each node is a binary variable and the __edge potential__ is defined as 
 
    $$
       \log p(v | Pa(v)) \propto \left\\{\\begin{array}{cc} -\infty& v+ \max(Pa(v))>1 \\\\ \beta\, v &\text{o.w.}\\end{array} \right. 
@@ -31,6 +31,8 @@ The scipt `PGMcommon.py` contains several classes of probabilistic grapical mode
   
 
 
-## Generate probablistic graphical model
+## Gaussian Random Field and the smooth graph signal
+
+Considering the given network $\mathcal{G}(\mathcal{V}, \mathcal{E})$, where $\mathcal{V}$ is the vertex set and $\mathcal{E}$ is the edge set. Each node represent a measurement taken at a local site in the network. 
 
 
