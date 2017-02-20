@@ -14,7 +14,6 @@ The scipt `PGMcommon.py` contains several classes of probabilistic grapical mode
 
 $$ p(s_{i} = 1 | Pa(s_{i})) = \sigma\left(\mathbf{w}^{T}Pa(s_{i}) + \beta_{i} \right)  $$
 
-     Use `pymc` package 
 
   2. Independent Set Markov Chain Monte Carlo (`IndepSetMC`)
 
