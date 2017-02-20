@@ -12,7 +12,9 @@ The scipt `PGMcommon.py` contains several classes of probabilistic grapical mode
 
    A directed Baysian network on $[0,1]^d$ where $d$ is the dimension of features and equals to the number of nodes in graph. A Sigmoid Belief Network defines each conditional probability as 
 
-$$ p(s_{i} = 1 | Pa(s_{i})) = \sigma\left(\mathbf{w}^{T}Pa(s_{i}) + \beta_{i} \right)  $$
+$$ 
+    p(s_{i} = 1 | Pa(s_{i})) = \sigma\left(\mathbf{w}^{T}Pa(s_{i}) + \beta_{i} \right)  
+$$
 
      Use __pymc__ package 
 
@@ -21,7 +23,7 @@ $$ p(s_{i} = 1 | Pa(s_{i})) = \sigma\left(\mathbf{w}^{T}Pa(s_{i}) + \beta_{i} \r
    Implemented a Markov Random Field containing several independent sub-graph. Ech node is a binary variable and the edge potential is
 
    $$
-      P(v | Pa(v)) = \left\\{\\begin{array}{cc} -\infty& v+ \max(Pa(v))\\\\ \beta\, v &\text{o.w.}\\end{array} \right. 
+      P(v | Pa(v)) = \left\\{\\begin{array}{cc} -\infty& v+ \max(Pa(v))>1 \\\\ \beta\, v &\text{o.w.}\\end{array} \right. 
    $$
   
 
