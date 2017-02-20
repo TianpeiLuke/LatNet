@@ -3,3 +3,9 @@
 Consider a probabilistic graph signal model, $P(\mathbf{X}|\mathcal{G})$, where $\mathcal{G}:= (\mathcal{V}, \mathcal{E})$ with vertex set $\mathcal{V}$ and $\mathcal{E}$. Each verterx $v\in \mathcal{V}$ is associated with a $p$-dimensional measurement $\mathbf{x}\_{v} \in \mathbb{R}^{p}$. Let $\mathbf{X}:= [\mathbf{x}\_{1}, \\ldots, \mathbf{x}\_{N}]^{T} \in \mathbb{R}^{N \times p}$ 
 
 Assume that each column of $\mathbf{X}$ is independent and 
+$$
+   \mathbf{x}\_{v} = f(\mathbf{h}\_{v})
+$$ with 
+$$
+    p(h\_{1}, h_2, \\ldots h_{N} ) = \mathcal{N}(\mathbf{0}, \mathbf{J})
+$$ where $\mathbf{J}$ is inverse covariance matrix of the hidden variables. 
