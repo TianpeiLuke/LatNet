@@ -24,4 +24,4 @@ A graph constraint is superimposed on the inverse convariance structure so that 
 
 In other words, the stochastic graph signal $x: \mathcal{V} \rightarrow \mathbb{R}$ evaluated at two non-adjacency vertices are conditional independence given all the neigboring nodes. 
 
-$$ x\_{v_1} \bot x\_{v_2} | \mathbf{x}\_{\mathcal{N}(v_1)}, \quad (v_1, v_2) \not\in \mathcal{E}  $$
+$$ x\_{v_1} \bot x\_{v_2} | \mathbf{x}\_{\mathcal{N}(v_1)}, \quad  v_2 \not\in \mathcal{N}(v_1)  $$
