@@ -7,5 +7,5 @@ $$
    x\_{v} = f(h\_{1}, \\ldots, h\_{v}, \\ldots, h\_{N})
 $$ with 
 $$
-    p(h\_{1}, h_2, \\ldots h_{N} ) = \mathcal{N}(\mathbf{0}, \mathbf{J})
-$$ where $\mathbf{J}$ is inverse covariance matrix of the hidden variables. 
+    p(h\_{1}, h_2, \\ldots h_{N} ) = \mathcal{N}(\mathbf{0}, \mathbf{J}_{h,h})
+$$ where $\mathbf{J}\_{h,h}$ is inverse covariance matrix of the hidden variables. 
