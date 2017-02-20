@@ -16,15 +16,15 @@ $$ p(s_{i} = 1 | Pa(s_{i})) = \sigma\left(\mathbf{w}^{T}Pa(s_{i}) + \beta_{i} \r
 
      Use `pymc` package 
 
-   2. Independent Set Markov Chain Monte Carlo (`IndepSetMC`)
+  2. Independent Set Markov Chain Monte Carlo (`IndepSetMC`)
 
    Implemented a Markov Random Field containing several independent sub-graph. Ech node is a binary variable and the edge potential is
 
-   \begin{equation*}
-      P(v | Pa(v)) = \left\{\begin{array}[cc] 
+   \begin{align*}
+      P(v | Pa(v)) &= \left\{\begin{array}{cc} 
                                    -\infty  & v + \max(Pa(v)) > 1 \\
                                     \beta\,v & \text{o.w.} \end{array} \right.
-   \end{equation*}
+   \end{align*}
   
 
 
