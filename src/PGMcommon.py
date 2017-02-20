@@ -156,83 +156,83 @@ class SigBeliefNet(pm.MCMC):
 
 
 
-class IsingModel(pm.MCMC):
-    '''
-        #================================================================
-        #         A Ising Model using Gibbs sampler
-        #
-
-    '''
-    def __init__(self, G=nx.grid_2d_graph(m=20, n=20), size=[20,20], node_potential=1, edge_potential=1):
-        self.G = G
-        self.size = size
-        self.param = [node_potential, edge_potential]
-        self.X   = [pm.Bernoulli(str(v), 0.5, value=0) for v in G.nodes_iter()]
-        self.X_idx = dict([(n, i) for i, n in enumerate(G.nodes_iter())])
-        self.psi = [self.edgePotential(v, G[v]) for v in G.nodes_iter()]
-        pm.MCMC.__init__(self, [self.X, self.psi])
-
-
-    def edgePotential(self, v, N_v):
-
-        def potential_logp(v, neighbors):
-            partial_energy = 0
-            for u in neighbors:
-                s_v = v
-                partial_energy += s_v
-            return -self.param[1]*partial_energy
-        
-        return pm.Potential(logp= potential_logp, name = "N_(%d, %d)" % (v[0], v[1]), parents = {'v': self.X[self.X_idx[v]], 'neighbors': [self.X[self.X_idx[w]] for w in N_v]}, doc="edge potential"  )
-
-
-    def draw_data_prepare(self, G):
-        pos_coordinates = self.plot_get_pos(G)
-        #names = [str(v) for v in G.nodes_iter()]
-        trace_all = []
-        bin_transform = lambda x: 2*x-1
-        nodeIdx = []
-        for i, v in enumerate(G.nodes_iter()):
-            nodeIdx.append({'node': v, 'loc': i})
-            trace_all.append(np.vectorize(bin_transform)(self.trace(str(v))[:].astype(int)))
-        trace_all = np.asarray(trace_all)
-        edge_list = G.edges()
-        return (pos_coordinates, edge_list, trace_all, nodeIdx)
-
-    def plot_get_pos(self, G):
-        pos = nx.nx_pydot.graphviz_layout(G)
-        return np.array([[pos[key][0], pos[key][1]] for key in pos])
-
-
-    def animate(self, G, save_anime=False):
-        hist = self.draw_data_prepare(G)
-        fig = plt.figure(4)
-        ax = fig.add_subplot(111)
-        cax = ax.matshow(hist[0], vmin=-1, vmax=1)
-    
-        def animate(i):
-            #print(i)
-            cax.set_data(hist[i])  # update the data
-            return cax,
-    
-    
-        # Init only required for blitting to give a clean slate.
-        def init():
-            cax.set_data(hist[0]) 
-            return cax,
-        # call the animator.  blit=True means only re-draw the parts that have changed.
-        anim = animation.FuncAnimation(fig, animate, init_func=init,
-                                   frames=len(hist), interval=10, blit=True)
-    
-        # save the animation as an mp4.  This requires ffmpeg or mencoder to be
-        # installed.  The extra_args ensure that the x264 codec is used, so that
-        # the video can be embedded in html5.  You may need to adjust this for
-        # your system: for more information, see
-        # http://matplotlib.sourceforge.net/api/animation_api.html
-        if save_anime: 
-            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_isingState"+".mp4"
-            anim.save(filename, fps=30, extra_args=['-vcodec', 'libx264']) 
-    
-        plt.show()
+#class IsingModel(pm.MCMC):
+#    '''
+#        #================================================================
+#        #         A Ising Model using Gibbs sampler
+#        #
+#
+#    '''
+#    def __init__(self, G=nx.grid_2d_graph(m=20, n=20), size=[20,20], node_potential=1, edge_potential=1):
+#        self.G = G
+#        self.size = size
+#        self.param = [node_potential, edge_potential]
+#        self.X   = [pm.Bernoulli(str(v), 0.5, value=0) for v in G.nodes_iter()]
+#        self.X_idx = dict([(n, i) for i, n in enumerate(G.nodes_iter())])
+#        self.psi = [self.edgePotential(v, G[v]) for v in G.nodes_iter()]
+#        pm.MCMC.__init__(self, [self.X, self.psi])
+#
+#
+#    def edgePotential(self, v, N_v):
+#
+#        def potential_logp(v, neighbors):
+#            partial_energy = 0
+#            for u in neighbors:
+#                s_v = v
+#                partial_energy += s_v
+#            return -self.param[1]*partial_energy
+#        
+#        return pm.Potential(logp= potential_logp, name = "N_(%d, %d)" % (v[0], v[1]), parents = {'v': self.X[self.X_idx[v]], 'neighbors': [self.X[self.X_idx[w]] for w in N_v]}, doc="edge potential"  )
+#
+#
+#    def draw_data_prepare(self, G):
+#        pos_coordinates = self.plot_get_pos(G)
+#        #names = [str(v) for v in G.nodes_iter()]
+#        trace_all = []
+#        bin_transform = lambda x: 2*x-1
+#        nodeIdx = []
+#        for i, v in enumerate(G.nodes_iter()):
+#            nodeIdx.append({'node': v, 'loc': i})
+#            trace_all.append(np.vectorize(bin_transform)(self.trace(str(v))[:].astype(int)))
+#        trace_all = np.asarray(trace_all)
+#        edge_list = G.edges()
+#        return (pos_coordinates, edge_list, trace_all, nodeIdx)
+#
+#    def plot_get_pos(self, G):
+#        pos = nx.nx_pydot.graphviz_layout(G)
+#        return np.array([[pos[key][0], pos[key][1]] for key in pos])
+#
+#
+#    def animate(self, G, save_anime=False):
+#        hist = self.draw_data_prepare(G)
+#        fig = plt.figure(4)
+#        ax = fig.add_subplot(111)
+#        cax = ax.matshow(hist[0], vmin=-1, vmax=1)
+#    
+#        def animate(i):
+#            #print(i)
+#            cax.set_data(hist[i])  # update the data
+#            return cax,
+#    
+#    
+#        # Init only required for blitting to give a clean slate.
+#        def init():
+#            cax.set_data(hist[0]) 
+#            return cax,
+#        # call the animator.  blit=True means only re-draw the parts that have changed.
+#        anim = animation.FuncAnimation(fig, animate, init_func=init,
+#                                   frames=len(hist), interval=10, blit=True)
+#    
+#        # save the animation as an mp4.  This requires ffmpeg or mencoder to be
+#        # installed.  The extra_args ensure that the x264 codec is used, so that
+#        # the video can be embedded in html5.  You may need to adjust this for
+#        # your system: for more information, see
+#        # http://matplotlib.sourceforge.net/api/animation_api.html
+#        if save_anime: 
+#            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_isingState"+".mp4"
+#            anim.save(filename, fps=30, extra_args=['-vcodec', 'libx264']) 
+#    
+#        plt.show()
 
 
 class IndepSetMC(pm.MCMC):
