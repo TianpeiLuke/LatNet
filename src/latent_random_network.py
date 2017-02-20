@@ -144,7 +144,7 @@ class latent_random_field:
             #pos = nx.spring_layout(G) #nx.fruchterman_reingold_layout(G) #nx.nx_pydot.graphviz_layout(G)
             pos = dict(zip(G.nodes(), [np.asarray(u) for u in G.nodes()]))
             fig1 = plt.figure(1)
-            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*sum(size), font_color='w')
+            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 8, node_color=['r']*sum(size), font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
                 fig1.savefig(filename, format="eps")
@@ -163,6 +163,26 @@ class latent_random_field:
             if save_fig == True:
                 fig1.savefig(filename, format="eps")
     
+        elif option['model'] == 'balanced_tree':
+            try:
+                r = option['r']
+            except KeyError:
+                r = 2
+
+            try:
+                h = option['h']
+            except KeyError:
+                h = 3
+
+            tries = 10000
+            G = nx.balanced_tree(r=r, h=h, create_using=nx.DiGraph())
+            pos = nx.nx_pydot.graphviz_layout(G)
+            fig1 = plt.figure(1)
+            nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=['r']*len(pos), font_color='w')
+            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+            if save_fig == True:
+                fig1.savefig(filename, format="eps")
+        
         G_out = nx.Graph()
         # node initialization 
         G_out.add_nodes_from(G.nodes(), attributes=np.ones((node_dim,)).T)
