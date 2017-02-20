@@ -25,3 +25,8 @@ A graph constraint is superimposed on the inverse convariance structure so that 
 In other words, the stochastic graph signal $x: \mathcal{V} \rightarrow \mathbb{R}$ evaluated at two non-adjacency vertices are conditional independent given all the neigboring nodes. 
 
 $$ x\_{v_1} \bot x\_{v_2} | \mathbf{x}\_{\mathcal{N}(v_1)}, \quad  v_2 \not\in \mathcal{N}(v_1)  $$
+
+We can compare with the _sparse inverse covariance estimation_ using e.g. __gLasso__. The sparse inverse covariance estimation find the maximum likelihood estimator of inverse covariance estimation under sparsity constraint. That is, 
+$$
+   \widehat{\mathbf{J}\_{xx}} = \arg\min -\log\left( \det |\mathbf{J}| \right) + \text{tr}\left(\mathbf{S}\,\mathbf{J}\right) + \beta\,\|\mathbf{J} \|\_{1}
+$$ where $\mathbf{S} := \mathbf{X}\mathbf{X}^{T}/m$
