@@ -4,7 +4,7 @@ Consider a probabilistic graph signal model, $P(\mathbf{X}|\mathcal{G})$, where 
 
 Assume that each column of $\mathbf{X}$ is independent and 
 $$
-   \mathbf{x}\_{v} = f(\mathbf{h}\_{v})
+   x\_{v} = f(h\_{1}, \\ldots, h\_{v}, \\ldots, h\_{N})
 $$ with 
 $$
     p(h\_{1}, h_2, \\ldots h_{N} ) = \mathcal{N}(\mathbf{0}, \mathbf{J})
