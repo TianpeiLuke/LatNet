@@ -2,7 +2,7 @@
 
 by Tianpei (Luke) Xie. 
 
-This package includes __python__ codes that implements the __  _latent graph signal analysis_ __ in last chapter of my thesis. It contains the following sections: 
+This package includes __python__ codes that implements the ___latent graph signal analysis___ in last chapter of my thesis. It contains the following sections: 
 
 ## Probabilistic graphical model 
 
