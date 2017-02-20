@@ -1,6 +1,6 @@
 # Gaussian random field and stochastic graph signal analysis
 
-Consider a probabilistic graph signal model, $P(\mathbf{X}|\mathcal{G})$, where $\mathcal{G}:= (\mathcal{V}, \mathcal{E})$ with vertex set $\mathcal{V}$ and $\mathcal{E}$. Each verterx $v\in \mathcal{V}$ is associated with a $p$-dimensional measurement $\mathbf{x}\_{v}:= (x\_{v}^{(1)}, \\ldots, x\_{v}^{(p)}) \in \mathbb{R}^{p}$. Let $\mathbf{X}:= [\mathbf{x}\_{1}, \\ldots, \mathbf{x}\_{N}]^{T} \in \mathbb{R}^{N \times p}$ 
+Consider a probabilistic graph signal model, $P(\mathbf{X}|\mathcal{G})$, where $\mathcal{G}:= (\mathcal{V}, \mathcal{E})$ with vertex set $\mathcal{V}$ and $\mathcal{E}$. Each verterx $v\in \mathcal{V}$ is associated with a $m$-dimensional measurement $\mathbf{x}\_{v}:= (x\_{v}^{(1)}, \\ldots, x\_{v}^{(m)}) \in \mathbb{R}^{m}$. Let $\mathbf{X}:= [\mathbf{x}\_{1}, \\ldots, \mathbf{x}\_{N}]^{T} \in \mathbb{R}^{N \times m}$ 
 
 Assume that each column of $\mathbf{X}$ is independent so that they are i.i.d. samples of a stochastic function $x: \mathcal{V} \times \Omega \rightarrow \mathbb{R}$. 
 
