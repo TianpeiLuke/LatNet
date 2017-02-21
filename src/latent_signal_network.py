@@ -70,7 +70,7 @@ class latent_signal_network:
             nx.draw(G, pos=self.pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*self.n, font_color='w')
         
         elif self.model_name == 'grid':
-            self.n = np.multiply(self.size)
+            self.n = self.size[0]*self.size[1]
             G = nx.grid_2d_graph(m=self.size[0], n=self.size[1])
             self.pos = nx.nx_pydot.graphviz_layout(G)
             nx.draw(G, pos=self.pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*self.n, font_color='w')

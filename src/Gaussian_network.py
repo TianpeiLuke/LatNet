@@ -47,7 +47,7 @@ def _objective(mle, precision_, alpha):
     return cost
 
 
-def sparse_inv_cov_glasso(X, n, m, alpha=0.01, max_iter=100, convg_threshold=1e-3, return_costs=False):
+def sparse_inv_cov_glasso(X, n, m, alpha=0.1, max_iter=100, convg_threshold=1e-3, return_costs=False):
     '''
          inverse covariance estimation by maximum log-likelihood estimate given X
 
