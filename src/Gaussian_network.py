@@ -10,7 +10,7 @@ import os
 from time import gmtime, strftime
 import scipy as sp
 import cvxopt
-from sklearn.linear_model import lars_path
+from sklearn.linear_model import lars_path, ridge_regression
 from decimal import Decimal
 from sklearn.covariance.empirical_covariance_ import log_likelihood
 
@@ -141,7 +141,7 @@ def sparse_inv_cov_glasso(X, alpha=0.1, S_init=None, max_iter=100, verbose=False
 
 
 
-def sparse_inv_cov_glasso_adjmat(emp_cov, alpha=0.1, S_init=None, max_iter=100, verbose=False, convg_threshold=1e-3, return_costs=False):
+def sparse_inv_cov_glasso_v2(emp_cov, block_index,  alpha=0.1, S_init=None, max_iter=100, verbose=False, convg_threshold=1e-3, return_costs=False):
     '''
          inverse covariance estimation by maximum log-likelihood estimate given X
 
@@ -187,7 +187,7 @@ def sparse_inv_cov_glasso_adjmat(emp_cov, alpha=0.1, S_init=None, max_iter=100, 
     try:
         d_gap = np.inf
         for t in range(max_iter):
-            for i in range(n):
+            for i in block_index: #range(n):
                 #index = [x for x in indices if x !=i]
                 covariance_11 = np.ascontiguousarray(
                                      covariance[indices != i].T[indices != i])
@@ -195,9 +195,12 @@ def sparse_inv_cov_glasso_adjmat(emp_cov, alpha=0.1, S_init=None, max_iter=100, 
                 #solve lasso for each column
                 alpha_min = alpha/(n-1)
                 #alpha_min = float(round(alpha_min, 5))
+                #if i in block_index:
                 _, _, coeffs = lars_path(covariance_11, covariance_12, Xy=covariance_12, 
                                          Gram=covariance_11, alpha_min = alpha_min, 
                                          copy_Gram = True, method='lars', return_path=False  ) 
+                #else:
+                #    coeffs  = ridge_regression(covariance_11, covariance_12, alpha=alpha)                
                 #coeffs = coeffs[:,-1]   
                 #update the precision matrix
                 precision[i,i]   = 1./( covariance[i,i] - np.dot(covariance[indices != i, i], coeffs))
@@ -251,17 +254,112 @@ def sparse_inv_cov_cvx(X, n, m, alpha):
 
 
 
-def inv_cov(X, n, m):
+def latent_variable_inv_cov(X, h_dim=None,  alpha=0.1, S_init=None, max_iter_out=100, max_iter_in=100, verbose=False, convg_threshold=1e-3, return_hists=False):
     '''
-         inverse covariance estimation by maximum log-likelihood estimate given X
+       A EM algorithm implementation of the Latent Variable Gaussian Graphical Model 
+      
+       see review of  "Venkat Chandrasekaran, Pablo A Parrilo, and Alan S Willsky. Latent variable graphical model selection via convex optimization. The Annals of Statistics, 40(4):1935–1967, 2012."
 
-       1/m* sum log p(X | J) := 0.5*log(det(J)) - 0.5*tr(S*J)
 
-         S:= np.dot(X,X.T)/m
+       Loop for t= 1,2,...,
+ 
+       1. M-step:
+          solve a sparse inverse covariance estimation using gLasso 
+             with expectation of empirical covariance over (observed, latent) data
 
+       2. E-step:
+          given the estimated sparse inverse covariance \Sigma_{(o,h)}, find the expectation of covariance over (o,h) given the observed covariance data S
+
+        = [
+            [S, -S*Sigma_{oh} ]
+            [-S*Sigma_{ho}, eye(h) + Sigma_{ho}*S*Sigma_{oh}]
+          ]
+ 
     '''
-    return np.cov(X)
+    n, m = X.shape
+    S = np.cov(X)
 
+    if h_dim is None or h_dim > n:
+        h_dim = int(np.ceil(float(n)/2.0))   #size of hidden variables
+        print('Invalid hidden dimension. Choose '+ str(h_dim))
+
+    n_all = n + h_dim
+    #print(n_all)
+
+    if alpha == 0:
+        if return_costs:
+            precision = np.linalg.pinv(S)
+            cost = - 2. * log_likelihood(S, precision)
+            cost += n_features * np.log(2 * np.pi)
+            d_gap = np.sum(S * precision) - n
+            return S, precision, (cost, d_gap)
+        else:
+            return S, np.linalg.pinv(S)
+
+    costs = list()
+    if S_init is None:
+        covariance_o = S.copy()
+    else:
+        covariance_o = S_init.copy()
+    # As a trivial regularization (Tikhonov like), we scale down the
+    # off-diagonal coefficients of our starting point: This is needed, as
+    # in the cross-validation the cov_init can easily be
+    # ill-conditioned, and the CV loop blows. Beside, this takes
+    # conservative stand-point on the initial conditions, and it tends to
+    # make the convergence go faster.
+
+    covariance_o *= 0.95
+    diagonal = S.flat[::n+1]
+    covariance_o.flat[::n+1] = diagonal
+
+    mle_estimate_o = S.copy()
+    # initialize a random block for precision_(oh)
+    precision_oh = 0.1*np.random.randn(n, h_dim)
+    covariance_all = np.zeros((n_all, n_all))
+    #print(covariance_all.shape)
+
+    covariance_oh = -np.dot(covariance_o, precision_oh)
+    covariance_hh = np.eye(h_dim) - np.dot(precision_oh.T, covariance_oh)  
+
+    subblock1_index = np.arange(n)
+    subblock2_index = n+ np.arange(h_dim)
+
+    covariance_all[np.ix_(subblock1_index, subblock1_index)] = covariance_o
+    covariance_all[np.ix_(subblock1_index, subblock2_index)] = covariance_oh
+    covariance_all[np.ix_(subblock2_index, subblock1_index)] = covariance_oh.T 
+    covariance_all[np.ix_(subblock2_index, subblock2_index)] = covariance_hh
+
+    precision_all = np.linalg.pinv(covariance_all)
+
+    cov_all_list = list()
+    cov_all_list.append(covariance_all)
+    prec_all_list = list()
+    prec_all_list.append(precision_all)
+   
+    # EM-loop
+    for t in range(max_iter_out):
+        # M-step: find the inverse covariance matrix for entire graph
+        _, precision_t = sparse_inv_cov_glasso_v2(covariance_all, block_index=subblock1_index, alpha=alpha, max_iter=max_iter_in, convg_threshold=convg_threshold, verbose=verbose)
+         
+        precision_all = precision_t
+        prec_all_list.append(precision_all)
+  
+        precision_oh = precision_all[np.ix_(subblock1_index, subblock2_index)]
+        # E-step: find the expectation of covariance over (o, h)
+        covariance_oh = -np.dot(covariance_o, precision_oh)
+        covariance_hh = np.eye(h_dim) - np.dot(precision_oh.T, covariance_oh)  
+ 
+        covariance_all[np.ix_(subblock1_index, subblock1_index)] = covariance_o
+        covariance_all[np.ix_(subblock1_index, subblock2_index)] = covariance_oh
+        covariance_all[np.ix_(subblock2_index, subblock1_index)] = covariance_oh.T 
+        covariance_all[np.ix_(subblock2_index, subblock2_index)] = covariance_hh
+
+        cov_all_list.append(covariance_all)
+
+    if return_hists:
+        return (covariance_all[np.ix_(subblock1_index, subblock1_index)], precision_all[np.ix_(subblock1_index, subblock1_index)],  cov_all_list, prec_all_list)
+    else:
+        return (covariance_all[np.ix_(subblock1_index, subblock1_index)], precision_all[np.ix_(subblock1_index, subblock1_index)]) 
 
 
 class Gaussian_Random_Field(object): 
@@ -270,14 +368,34 @@ class Gaussian_Random_Field(object):
     '''
     def __init__ (self, G, n, option):
         self.G = G, self.n = n
-       
+        try:
+            self.alpha = option['alpha']
+        except KeyError:
+            self.alpha = 0.5
 
+        try:
+            self.threshold = option['threshold']
+        except KeyError:
+            self.threshold = 1e-3
 
-    def fit(self, X):
+        try:
+            self.max_iter = option['max_iter']
+        except KeyError:
+            self.max_iter = 100
+
+        try:
+            self.h_dim = option['h_dim']
+        except KeyError:
+            self.h_dim = 10
+
+    def fit(self, X, option):
         self.X = X
         self.m = X.shape[1]
-        
+        if option['method'] == 'Sparse_GGM':
+            self.covariance, self.precision =  sparse_inv_cov_glasso(X, alpha=self.alpha, max_iter=self.max_iter,  convg_threshold=self.threshold)
 
+        elif option['method'] == 'Latent_variable_GGM':
+            self.covariance, self.precision =  latent_variable_inv_cov(X, self.h_dim, alpha=self.alpha, max_iter_out=self.max_iter, max_iter_in=100,  convg_threshold=self.threshold)
 
 
 
