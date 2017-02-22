@@ -47,7 +47,7 @@ def _objective(mle, precision_, alpha):
     return cost
 
 
-def sparse_inv_cov_glasso(X, n, m, alpha=0.1, max_iter=100, convg_threshold=1e-3, return_costs=False):
+def sparse_inv_cov_glasso(X, alpha=0.1, S_init=None, max_iter=100, verbose=False, convg_threshold=1e-3, return_costs=False):
     '''
          inverse covariance estimation by maximum log-likelihood estimate given X
 
@@ -58,19 +58,23 @@ def sparse_inv_cov_glasso(X, n, m, alpha=0.1, max_iter=100, convg_threshold=1e-3
          using gLasso 
 
     '''
+    n, m = X.shape
     S = np.cov(X)
     if alpha == 0:
         if return_costs:
-            precision = linalg.inv(S)
+            precision = np.linalg.pinv(S)
             cost = - 2. * log_likelihood(S, precision)
             cost += n_features * np.log(2 * np.pi)
             d_gap = np.sum(S * precision) - n
             return S, precision, (cost, d_gap)
         else:
-            return S, linalg.inv(S)
+            return S, np.linalg.pinv(S)
 
     costs = list()
-    covariance = S.copy()
+    if S_init is None:
+        covariance = S.copy()
+    else:
+        covariance = S_init.copy()
     # As a trivial regularization (Tikhonov like), we scale down the
     # off-diagonal coefficients of our starting point: This is needed, as
     # in the cross-validation the cov_init can easily be
@@ -111,6 +115,10 @@ def sparse_inv_cov_glasso(X, n, m, alpha=0.1, max_iter=100, convg_threshold=1e-3
     
             d_gap = _dual_gap(mle_estimate, precision, alpha) 
             cost = _objective(mle_estimate, precision, alpha)
+            if verbose:
+                print(
+                    '[graph_lasso] Iteration % 3i, cost % 3.2e, dual gap %.3e'
+                    % (t, cost, d_gap))
             if return_costs:
                 costs.append((cost, d_gap))
             if np.abs(d_gap) < convg_threshold:
@@ -133,6 +141,97 @@ def sparse_inv_cov_glasso(X, n, m, alpha=0.1, max_iter=100, convg_threshold=1e-3
 
 
 
+def sparse_inv_cov_glasso_adjmat(emp_cov, alpha=0.1, S_init=None, max_iter=100, verbose=False, convg_threshold=1e-3, return_costs=False):
+    '''
+         inverse covariance estimation by maximum log-likelihood estimate given X
+
+         -log p(X | J) + alpha ||J||_{1} := -log(det(J)) + tr(S*J) + alpha*||J||_{1}
+
+         S:= np.dot(X,X.T)/m
+
+         using gLasso 
+
+    '''
+    n = emp_cov.shape[0]
+    #S = np.cov(X)
+    if alpha == 0:
+        if return_costs:
+            precision = np.linalg.pinv(emp_cov)
+            cost = - 2. * log_likelihood(emp_cov, precision)
+            cost += n_features * np.log(2 * np.pi)
+            d_gap = np.sum(emp_cov * precision) - n
+            return emp_cov, precision, (cost, d_gap)
+        else:
+            return emp_cov, np.linalg.pinv(emp_cov)
+
+    costs = list()
+    if S_init is None:
+        covariance = emp_cov.copy()
+    else:
+        covariance = S_init.copy()
+    # As a trivial regularization (Tikhonov like), we scale down the
+    # off-diagonal coefficients of our starting point: This is needed, as
+    # in the cross-validation the cov_init can easily be
+    # ill-conditioned, and the CV loop blows. Beside, this takes
+    # conservative stand-point on the initial conditions, and it tends to
+    # make the convergence go faster.
+
+    covariance *= 0.95
+    diagonal = emp_cov.flat[::n+1]
+    covariance.flat[::n+1] = diagonal
+
+ #+ alpha*np.eye(n, dtype=X.dtype)
+    mle_estimate = emp_cov.copy()
+    precision = np.linalg.pinv(covariance)
+    indices = np.arange(n)
+    try:
+        d_gap = np.inf
+        for t in range(max_iter):
+            for i in range(n):
+                #index = [x for x in indices if x !=i]
+                covariance_11 = np.ascontiguousarray(
+                                     covariance[indices != i].T[indices != i])
+                covariance_12 = mle_estimate[indices != i , i]
+                #solve lasso for each column
+                alpha_min = alpha/(n-1)
+                #alpha_min = float(round(alpha_min, 5))
+                _, _, coeffs = lars_path(covariance_11, covariance_12, Xy=covariance_12, 
+                                         Gram=covariance_11, alpha_min = alpha_min, 
+                                         copy_Gram = True, method='lars', return_path=False  ) 
+                #coeffs = coeffs[:,-1]   
+                #update the precision matrix
+                precision[i,i]   = 1./( covariance[i,i] - np.dot(covariance[indices != i, i], coeffs))
+                precision[indices != i, i] = -precision[i,i] * coeffs
+                precision[i, indices != i] = -precision[i,i] * coeffs
+                temp_coeffs = np.dot(covariance_11, coeffs)
+                covariance[indices != i ,i] = temp_coeffs
+                covariance[i, indices != i] = temp_coeffs
+    
+            d_gap = _dual_gap(mle_estimate, precision, alpha) 
+            cost = _objective(mle_estimate, precision, alpha)
+            if verbose:
+                print(
+                    '[graph_lasso] Iteration % 3i, cost % 3.2e, dual gap %.3e'
+                    % (t, cost, d_gap))
+            if return_costs:
+                costs.append((cost, d_gap))
+            if np.abs(d_gap) < convg_threshold:
+                break
+            if not np.isfinite(cost) and t > 0:
+                    raise FloatingPointError('Non SPD result: the system is '
+                                             'too ill-conditioned for this solver')
+        else:
+            #this triggers if not break command occurs
+            print("The algorithm did not coverge. Try increasing the max number of iterations.")
+    except FloatingPointError as e:
+        e.args = (e.args[0]
+                  + '. The system is too ill-conditioned for this solver',)
+        raise e
+
+    if return_costs:
+        return covariance, precision, costs
+    else:
+        return (covariance ,  precision )
 
 
 
