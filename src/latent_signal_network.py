@@ -4,6 +4,7 @@ import numpy as np
 #from numpy.linalg import eigvalsh, eigh
 from scipy.sparse.linalg import eigsh
 import networkx as nx
+from networkx.algorithms import bipartite
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d.art3d as art3d
 import os
@@ -12,6 +13,25 @@ import time
 from sklearn.preprocessing import normalize
 
 
+
+
+def bipartite_undirected_random_graph(G_init, m, n, prob,  seed=None):
+
+    G_init.clear()
+    
+
+
+
+
+
+
+
+
+
+
+
+
+#===============================================================
 class latent_signal_network:
 
    
@@ -42,89 +62,9 @@ class latent_signal_network:
         # if already written 
         self.ifwrite = False
 
-        #============================== random graph generate ==================
-        if self.model_name == 'partition':
-            [self.p_in, self.p_out] = prob
-            self.n = sum(self.size)
-            G = nx.random_partition_graph(sizes=self.size, p_in=self.p_in, p_out=self.p_out, seed=self.seed, directed=False)
-            self.pos = nx.nx_pydot.graphviz_layout(G)
-            #nx.draw(G, pos=self.pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*self.size[0]+['b']*self.size[1], font_color='w')
-
-        elif self.model_name == 'newman':
-            self.k = option['k-NN']
-            self.n = self.size
-            G=  nx.newman_watts_strogatz_graph(self.size, k=self.k, p=self.prob, seed=self.seed)
-            self.pos = nx.circular_layout(G, dim=2, scale=1.0, center=None)
-            #nx.draw(G, pos=self.pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*self.n, font_color='w')
-
-        elif self.model_name == 'binomial':
-            self.n = self.size
-            if self.prob < 0.2:
-                G = nx.fast_gnp_random_graph(self.size, self.prob, seed=self.seed)
-            else:
-                G = nx.gnp_random_graph(self.size, self.prob, seed=self.seed)  
-            self.pos = nx.nx_pydot.graphviz_layout(G)
-            #nx.draw(G, pos=self.pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*self.n, font_color='w')
-
-        elif self.model_name == 'power':
-            self.n = self.size[0]
-            G = nx.powerlaw_cluster_graph(n=self.size[0], m=self.size[1], p=self.prob, seed=self.seed)
-            self.pos = nx.nx_pydot.graphviz_layout(G)
-            #nx.draw(G, pos=self.pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*self.n, font_color='w')
-        
-        elif self.model_name == 'grid':
-            self.n = self.size[0]*self.size[1]
-            G = nx.grid_2d_graph(m=self.size[0], n=self.size[1])
-            self.pos = dict(zip(G.nodes(), [np.asarray(u) for u in G.nodes()]))
-            #nx.draw(G, pos=self.pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*self.n, font_color='w')
-            
-        elif self.model_name == 'tree':
-            try:
-                self.gamma = option['gamma']
-            except KeyError:
-                self.gamma = 3
-            tries = 10000
-            self.n = self.size
-            G = nx.random_powerlaw_tree(n=self.size, gamma=self.gamma, seed= self.seed, tries=tries)
-            self.pos = nx.circular_layout(G, dim=2, scale=1.0, center=None) #nx.shell_layout(G) #nx.spring_layout(G) #nx.nx_pydot.graphviz_layout(G)
-            #nx.draw(G, pos=self.pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*self.n, font_color='w')
-        
-        elif option['model'] == 'balanced_tree':
-            try:
-                self.r = option['r']
-            except KeyError:
-                self.r = 2
-
-            try:
-                self.h = option['h']
-            except KeyError:
-                self.h = 3
-
-            self.n = int((self.r**(self.h+1) - 1)/(self.r-1))
-            G = nx.balanced_tree(r=self.r, h=self.h, create_using=nx.Graph())
-            self.pos = nx.nx_pydot.graphviz_layout(G)
-            #nx.draw(G, pos=self.pos, arrows=True, with_labels=True, fontsize= 8, node_color=['r']*len(self.pos), font_color='w')
-
-        #==================================================================
-        G_out = nx.Graph()
-        # node initialization 
-        G_out.add_nodes_from(G.nodes(), attributes=np.zeros((self.node_dim,)).T)
-        G_out.add_edges_from(G.edges())
-        # assign weight values
-        for u, v, e in G_out.edges(data=True):
-            e['weight'] = 1
-        
-        self.G = G_out
-        self.X = np.ndarray((self.n, self.node_dim))
-        # the normalized graph laplacian and its eigen decomposition 
-        self.L = nx.normalized_laplacian_matrix(self.G)
-        self.L_eig, self.U = eigsh(self.L, k=self.k_u, which='SM')
-        self.L_eig = self.L_eig.real
-        self.L_eig = self.L_eig[1:self.k_u]
-        self.U     = self.U[:,1:self.k_u]
 
 
-    def graph_build(self, size, prob, option, save_fig=False):
+    def graph_build(self, size, prob, option, write_graph=False, save_fig=False):
         '''
             build graph with two random partition. prob = [p_in, p_out], within-cluster edge prob and between-cluster edge prob. 
 
@@ -276,6 +216,9 @@ class latent_signal_network:
         for u, v, e in G_out.edges(data=True):
             e['weight'] = 1
 
+        if write_graph:
+            self.G = G_out
+
         return G_out
 
 
@@ -289,7 +232,7 @@ class latent_signal_network:
 #        self.node_dim = 0
 
 
-    def smooth_gsignal_generate(self, G, T, sigma, alpha=0, seed=1000, add_noise=False, show_plot=False, overwrite=False):
+    def smooth_gsignal_generate(self, G, T, sigma, alpha=0, seed=1000, add_noise=False, write_data=False, show_plot=False):
         '''
            generate the node attributes in the graph associated with the network topology.
          G = Graph with "attributes" data for each node 
@@ -364,9 +307,9 @@ class latent_signal_network:
         if show_plot == True:        
             plt.show()        
 
-        if overwrite == True:
+        if write_data == True:
             self.G = G.copy()
-            self.X = np.copy(X)
+            self.X = X.copy()
             self.hist_tv = np.copy(hist_tv)       
             self.ifwrite = True
         else:
@@ -376,7 +319,7 @@ class latent_signal_network:
 
 
 
-    def smooth_gsignal_filter(self, G, option, sigma, seed=1000, add_noise=False, show_plot=False, save_fig=False, overwrite=False):
+    def smooth_gsignal_filter(self, G, option, sigma, seed=1000, add_noise=False, show_plot=False, save_fig=False, write_data =False):
         '''
              Apply graph filtering to initial random graph signal X0
                     X = T*X0
@@ -396,6 +339,8 @@ class latent_signal_network:
                                   define coeffs = [coeff0, coeff1, coeff2, ..., coeffd] for degree d polynomial
                                         coff0 + coeff1*x + coeff2*x**2 + ... + coffd*x**d
                                   apply polynomial to each eigval 
+                       = 'sigmoid':
+                                   eigval*1/(1+exp(rate(i-b)))-bias
 
                        = 'l0_renomalize': apply l0_threshold then add sum(residual_energy) to each remaining eigval
                        = 'rescale': new_eigval =  option['weights'] * eigval
@@ -429,7 +374,7 @@ class latent_signal_network:
             #dim = len(G.node[idx]['attributes'])
             G.node[idx]['attributes'] = X[i,:]
 
-        if overwrite:
+        if write_data:
             self.G = G.copy()
             self.X = np.copy(X)
             self.ifwrite = True
@@ -459,6 +404,8 @@ class latent_signal_network:
                                   define coeffs = [coeff0, coeff1, coeff2, ..., coeffd] for degree d polynomial
                                         coff0 + coeff1*x + coeff2*x**2 + ... + coffd*x**d
                                   apply polynomial to each eigval 
+                       = 'sigmoid':
+                                   eigval*1/(1+exp(rate(i-b)))-bias
 
                        = 'l0_renomalize': apply l0_threshold then add sum(residual_energy) to each remaining eigval
                        = 'rescale': new_eigval =  option['weights'] * eigval
@@ -512,6 +459,29 @@ class latent_signal_network:
                 return sum([p*(sig**i) for i, p in enumerate(coeffs)])
 
             transformed_eigval = poly_fit(coeffs, eigval)
+
+        elif option['method'] == 'sigmoid':
+            try:
+                rate = option['rate']
+            except:
+                rate = 1
+           
+            try:
+                shift = option['shift']
+            except:
+                shift = 0
+
+            try:
+                bias = option['bias']
+            except:
+                bias = 0
+
+            import pywt
+            def sigmoid(x, rate, shift):
+                return 1/(1+np.exp(rate*(x - shift)))
+            
+            transformed_eigval = pywt.threshold(eigval*sigmoid(1+np.arange(len(eigval)), rate, shift), bias, 'soft')
+
           
         elif option['method'] == 'l0_renormalize':
             try:
@@ -588,6 +558,10 @@ class latent_signal_network:
                  
 
         return gft
+
+
+
+
 
 
     def inference_hidden_graph_regul(self, sigma, init_X=None):

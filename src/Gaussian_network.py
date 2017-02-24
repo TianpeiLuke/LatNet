@@ -317,8 +317,8 @@ def latent_variable_inv_cov(X, h_dim=None,  alpha=0.1, S_init=None, max_iter_out
     #precision_oh = 0.1*np.random.randn(n, h_dim)
     covariance_all = np.zeros((n_all, n_all))
     #print(covariance_all.shape)
-
-    covariance_oh = 1/(1.2*np.sqrt(n*h_dim))*np.random.randn(n, h_dim)#-np.dot(covariance_o, precision_oh)
+    factor = 0.3
+    covariance_oh = (factor/np.sqrt(n*h_dim))*np.random.randn(n, h_dim)#-np.dot(covariance_o, precision_oh)
     # by Schur complement
     # covariance_hh - covariance_oh.T*inv(covariance_o)*covariance_oh \succeq 0 
     covariance_hh = np.eye(h_dim) #- np.dot(precision_oh.T, covariance_oh)  
