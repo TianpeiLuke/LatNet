@@ -424,7 +424,10 @@ class latent_signal_network:
             #for laplacian matrix in increasing order
             eig_index = np.argsort(eigval_)
             eigval = eigval_[eig_index]
+            # find the inverse of laplacian
+            eigval[1:len(eigval)] = 1/eigval[1:len(eigval)]
             eigvec = eigvec_[:, eig_index]
+            
 
         n = len(G)
         dim = len(G.node[G.nodes()[0]]['attributes'])
@@ -507,16 +510,16 @@ class latent_signal_network:
             fig = plt.figure(figsize=(15,6))
             ax1 = fig.add_subplot(121)
             (markerline, stemlines, baseline) = plt.stem(np.arange(len(eigval)), eigval, 'b', basefmt='k-')
-            plt.plot(np.arange(len(eigval)), np.ones((len(eigval, ))), '-r')
-            if option['mat'] == 'adjacency_matrix':
-               plt.plot(np.arange(len(eigval)), -np.ones((len(eigval, ))), '-r')
+#            plt.plot(np.arange(len(eigval)), np.ones((len(eigval, ))), '-r')
+#            if option['mat'] == 'adjacency_matrix':
+#               plt.plot(np.arange(len(eigval)), -np.ones((len(eigval, ))), '-r')
             plt.xlabel('rank of eigenvalue')
             plt.ylabel('eigenvalue')
             ax1.grid(True)
 
             ax2 = fig.add_subplot(122)
             (markerline, stemlines, baseline) = plt.stem(np.arange(len(transformed_eigval)), transformed_eigval, 'b', basefmt='k-')
-            plt.plot(np.arange(len(eigval)), np.ones((len(eigval, ))), '-r')
+#            plt.plot(np.arange(len(eigval)), np.ones((len(eigval, ))), '-r')
             plt.xlabel('rank of eigenvalue')
             plt.ylabel('eigenvalue')
             ax2.grid(True)
