@@ -243,7 +243,7 @@ class latent_signal_network:
     
         #initialization
         n = len(G)
-        dim = len(G.node[0]['attributes'])
+        dim = len(G.node[G.nodes()[0]]['attributes'])
         X = np.ndarray((n,dim))
 
         if alpha > 1 :
@@ -349,13 +349,12 @@ class latent_signal_network:
 
         '''
         n = len(G)
-        dim = len(G.node[0]['attributes'])
+        dim = len(G.node[G.nodes()[0]]['attributes'])
         X = np.ndarray((n,dim))
           
         np.random.seed(seed)
         X_r = sigma*np.random.randn(n, dim)/np.sqrt(n)
         #X_r = normalize(X_r, norm='l1', axis=0)
-
         for i, idx in enumerate(G.nodes()):
             #dim = len(G.node[idx]['attributes'])
             G.node[idx]['attributes'] = X_r[i,:]
@@ -428,7 +427,7 @@ class latent_signal_network:
             eigvec = eigvec_[:, eig_index]
 
         n = len(G)
-        dim = len(G.node[0]['attributes'])
+        dim = len(G.node[G.nodes()[0]]['attributes'])
 
         if X0.shape[0] != n or X0.shape[1] != dim:
             X0 = np.random.randn(n, dim)
@@ -528,12 +527,21 @@ class latent_signal_network:
         return (transformed_eigval, np.asarray(eigvec), eigval) 
 
 
+    def get_normalized_laplacian(self, G):
+        laplacian = nx.normalized_laplacian_matrix(G).todense()
+        return np.asarray(laplacian)
 
 
+    def eigsh_laplacian(self, G, k=5):
+        if k > len(G):
+            k = len(G)
+        laplacian = nx.normalized_laplacian_matrix(G)
+        eigval, eigvec = eigsh(laplacian, k, which='SM')
+        return (eigval, eigvec)#[:, [1:len(eigval)]])
 
-
-    def graph_fourier_transform(self, X, show_fig=False, save_fig=False, overwrite=False):
-        U_k = self.U
+    def graph_fourier_transform(self, G, X, show_fig=False, save_fig=False, overwrite=False):
+        
+        _, U_k = self.eigsh_laplacian(G, self.k_u)
         gft = np.dot(U_k.T, X)
         if overwrite: self.X_f = gft
         if show_fig:
@@ -564,7 +572,7 @@ class latent_signal_network:
 
 
 
-    def inference_hidden_graph_regul(self, sigma, init_X=None):
+    def inference_hidden_graph_regul(self, G,  sigma, init_X=None):
         # find the latent variables in factor analysis model
         #   h = arg min 0.5*|| x - U*h||**2 + (0.5/sigma**2)*h.T*Lambda*h 
         if init_X is not None:
@@ -573,11 +581,10 @@ class latent_signal_network:
             if self.ifwrite:
                 X = self.X
             else:
-                X = np.random.randn(self.n, self.node_dim)
+                X = np.random.randn(len(G), self.node_dim)
     
 
-        U_k = self.U#[:, 0:self.k_u]
-        lambda_k = self.L_eig#[0:self.k_u]
+        lambda_k, U_k = self.eigsh_laplacian(G, self.k_u)#[:, 0:self.k_u]
         shinkage = lambda_k/sigma**2 + np.ones(lambda_k.shape)
 
         h = (np.dot(U_k.T, X).T/shinkage).T
@@ -586,10 +593,12 @@ class latent_signal_network:
 
     def get_node_attributes(self, G):
         n = len(G)
-        dim = len(G.node[0]['attributes'])
-        X = np.ndarray((n,dim))
+        dim = len(G.node[G.nodes()[0]]['attributes'])
+        X = np.zeros((n,dim))
+        idx_x = 0
         for i, data in G.nodes_iter(data=True):
-            X[i,:] = data['attributes']
+            X[idx_x,:] = data['attributes']
+            idx_x += 1
 
         nodeIdx = [{'node': idx, 'loc' : i} for i, idx in enumerate(G.nodes())]
         return [X, nodeIdx]
@@ -623,8 +632,11 @@ class latent_signal_network:
 
 
 
-    def get_pos_coordinate(self, pos):
-        return np.array([[pos[key][0], pos[key][1]] for key in pos])
+    def get_pos_coordinate(self, pos, nodeIdx=None):
+        if nodeIdx is None:
+            return np.array([[pos[key][0], pos[key][1]] for key in pos])
+        else:
+            return np.array([[pos[it['node']][0], pos[it['node']][1]] for it in nodeIdx])
 
 
     def plot_node_3d(self, pos_coordinates, edge_list,  node_values, view_angle, nodeIdx, columnIdx=0, figIdx=0, save_fig=False):  
@@ -649,6 +661,9 @@ class latent_signal_network:
             n1_idx = next((item['loc'] for item in nodeIdx if item['node']== edge[1]))
             lx = np.array((x[n0_idx], x[n1_idx]))
             ly = np.array((y[n0_idx], y[n1_idx]))
+            #print(lx)
+            #print(ly)
+            #print('----')
             line=art3d.Line3D(lx, ly, np.zeros((2,)), marker='o', markevery=(0, 1), markerfacecolor='r', color='k', linewidth=0.5)
             ax.add_line(line)
         # plot node and node-attributes in stem plot
