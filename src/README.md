@@ -1,4 +1,4 @@
-# Gaussian random field and stochastic graph signal analysis
+# Probabilistic Graphical Models and stochastic graph signal analysis
 
 Consider a probabilistic graph signal model, $P(\mathbf{X}|\mathcal{G})$, where $\mathcal{G}:= (\mathcal{V}, \mathcal{E})$ with vertex set $\mathcal{V}$ and $\mathcal{E}$. Each verterx $v\in \mathcal{V}$ is associated with a $m$-dimensional measurement $\mathbf{x}\_{v}:= (x\_{v}^{(1)}, \\ldots, x\_{v}^{(m)}) \in \mathbb{R}^{m}$. Let $\mathbf{X}:= [\mathbf{x}\_{1}, \\ldots, \mathbf{x}\_{N}]^{T} \in \mathbb{R}^{N \times m}$ 
 
@@ -12,6 +12,32 @@ $$
     p(h\_{1}, h_2, \\ldots h_{N} ) = \mathcal{N}(\mathbf{0}, \mathbf{J}\_{h,h})
 $$ where $\mathbf{J}\_{h,h}$ is inverse covariance matrix of the hidden variables. 
 -->
+
+## Probabilistic graphical model 
+
+The scipt `PGMcommon.py` contains several classes of probabilistic grapical models, including 
+
+  1. Sigmoid Belief Network (`SigBeliefNet`)
+
+   A directed Baysian network on $[0,1]^d$ where $d$ is the dimension of features and equals to the number of nodes in graph. A Sigmoid Belief Network defines each conditional probability as 
+
+   $$
+      p(s_{1}, s_{2}, \ldots, s_{n}) = \prod_{i} p(s_{i}|Pa(s_{i}))
+   $$
+   $$
+      p(s_{i} = 1 | Pa(s_{i})) = \sigma\left(\mathbf{w}^{T}Pa(s_{i}) + \beta_{i} \right)  
+   $$
+   Use __pymc__ package
+
+
+  2. Independent Set Markov Chain Monte Carlo (`IndepSetMC`)
+
+   Implemented a Markov Random Field containing several independent sub-graph. Each node is a binary variable and the __edge potential__ is defined as 
+
+   $$
+      \log p(v | Pa(v)) \propto \left\\{\\begin{array}{cc} -\infty& v+ \max(Pa(v))>1 \\\\ \beta\, v &\text{o.w.}\\end{array} \right. 
+   $$
+  
 
 ## Gaussian Markov Random Field
 
