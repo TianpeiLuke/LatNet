@@ -64,7 +64,5 @@ where $\mathbf{S} := \mathbf{X}\mathbf{X}^{T}/m$
 If the data contains hidden variables, we can assume that the Gaussian network on observed data is the marginal distribution of Gaussian network on (observed, latent). Assume that the observed sample covariance matrix is $\widehat{\mathbf{\Sigma}}\_{o}$. We can find its inverse covariance by solving 
 
 $$\begin{eqnarray}
- (\mathbf{S}^{*} , \mathbf{L}^{*})&= \arg\min_{\mathbf{L}\;, \;\mathbf{S}} -\frac{m}{2}\log\det\left(\mathbf{S} - \mathbf{L}\right)+ \frac{m}{2}\text{tr}\left(\widehat{\mathbf{\Sigma} }_{o}\left( \mathbf{S} - \mathbf{L}\right)\right) + \alpha_{m} \left(\lambda \|\mathbf{S}\|_{1}  + \|\mathbf{L}\|_{*}\right)  \\
-&\phantom{=}\text{s.t. }\quad \mathbf{S} - \mathbf{L}\succeq \mathbf{0} \nonumber\\
 &\phantom{===}\; \mathbf{L}\succeq \mathbf{0}  \nonumber
 \end{eqnarray}$$
