@@ -67,4 +67,4 @@ $$(\mathbf{S}^{\*}, \mathbf{L}^{\*})= \arg\min\_{\mathbf{L}\;, \;\mathbf{S}} -\f
 $$\text{s.t. }\phantom{===}\; \mathbf{S}- \mathbf{L}\succeq \mathbf{0}$$
 $$\phantom{===}\; \mathbf{L}\succeq \mathbf{0}$$
 
-The estimated precision matrix $\widehat{\mathbf{\Theta}}\_{o}= \mathbf{S} - \mathbf{L}$. Note that $\mathbf{\Theta}\_{o}$ is not sparse itself, since after marginalization, the conditional independence of data is lost. .
+The estimated precision matrix $\widehat{\mathbf{\Theta}}\_{o}= \mathbf{S} - \mathbf{L}$. Note that $\widehat{\mathbf{\Theta}}\_{o}$ is not sparse itself, since after marginalization, the conditional independence of data is lost. .
