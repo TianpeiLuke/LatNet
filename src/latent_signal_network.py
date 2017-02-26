@@ -87,6 +87,7 @@ class latent_signal_network:
                   ="power", Power-Law cluster graph 
                           size = [n,m] where n = nodes, m = edges for each node
                           prob = probability of adding a triangle after adding a random edge
+
                   ="grid", Grid-2D graph
                           size = [m,n] where mxn nodes for 2D grid
  
@@ -97,7 +98,14 @@ class latent_signal_network:
                   ='balanced_tree', a balanced tree with r branches and h depth
                           option['r'] = branches for each node
                           option['h'] = depth of the tree
-                 
+
+                  ='random_bipartite', a bipartite version of the binomial (Erdős-Rényi) graph.
+                          size = [n, m], n and m are node size of two clusters 
+                          prob = probability of adding an edge between two clusters
+                          must import nx.algorithm.bipartite
+
+                  
+ 
          option['seed'] for random seed 
          option['node_dim'] for the dimension of node attributes
         '''
@@ -141,7 +149,10 @@ class latent_signal_network:
                 G = nx.fast_gnp_random_graph(size, prob, seed=seed)
             else:
                 G = nx.gnp_random_graph(size, prob, seed=seed)  
-            
+         
+            if not nx.is_connected(G): #must be connected
+                raise ValueError("Not connected. Please increase the edge probability.")
+
             if type(size) == list:
                 size = sum(size)
             pos = nx.nx_pydot.graphviz_layout(G)
@@ -191,17 +202,54 @@ class latent_signal_network:
                 r = option['r']
             except KeyError:
                 r = 2
-
             try:
                 h = option['h']
             except KeyError:
                 h = 3
-
-            tries = 10000
             G = nx.balanced_tree(r=r, h=h, create_using=nx.Graph())
             pos = nx.nx_pydot.graphviz_layout(G)
             fig1 = plt.figure(1)
             nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=['r']*len(pos), font_color='w')
+            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+            if save_fig == True:
+                fig1.savefig(filename, format="eps")
+
+
+        elif option['model'] == 'bipartite_binomial':
+            if type(size) == int:
+                size = [10, 10]
+            G = nx.algorithms.bipartite.random_graph(size[0], size[1], prob, seed=seed, directed=False)
+            node_sets = nx.algorithms.bipartite.sets(G)
+            pos = nx.nx_pydot.graphviz_layout(G, prog='dot')
+            if not nx.is_connected(G): #must be connected
+                raise ValueError("Not connected. Please increase the edge probability.")
+            fig1 = plt.figure(1)
+            nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=['r']*size[0]+['b']*size[1], font_color='w')
+            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+            if save_fig == True:
+                fig1.savefig(filename, format="eps")
+
+
+        elif option['model'] == 'bipartite_uniform':
+            if type(size) == int:
+                size = [10, 10]
+
+            try:
+                num_edges = option['num_edges']
+            except KeyError:
+                num_edges = size[0]*size[1]
+ 
+            if num_edges > size[0]*size[1]:
+                print("too many edges. reduce to " + str(size[0]*size[1]))
+                num_edges = size[0]*size[1]
+
+            G = nx.algorithms.bipartite.gnmk_random_graph(size[0], size[1], num_edges, seed=seed, directed=False)
+            node_sets = nx.algorithms.bipartite.sets(G)
+            pos = nx.nx_pydot.graphviz_layout(G, prog='dot')
+            if not nx.is_connected(G): #must be connected
+                raise ValueError("Not connected. Please increase the edge probability.")
+            fig1 = plt.figure(1)
+            nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=['r']*size[0]+['b']*size[1], font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
                 fig1.savefig(filename, format="eps")
@@ -218,21 +266,13 @@ class latent_signal_network:
 
         if write_graph:
             self.G = G_out
+            self.option = option.copy()
 
         return G_out
 
 
-#    def clear_graph(self, G):
-#        self.G.clear()
-#        self.model_name = "clear"
-#        self.pos = None
-#        self.size = None
-#        self.prob = 0
-#        self.seed= None
-#        self.node_dim = 0
 
-
-    def smooth_gsignal_generate(self, G, T, sigma, alpha=0, seed=1000, add_noise=False, write_data=False, show_plot=False):
+    def smooth_gsignal_generate(self, G, T, sigma, alpha=0, seed=1000, add_noise=False, write_data=False, option=None, show_plot=False):
         '''
            generate the node attributes in the graph associated with the network topology.
          G = Graph with "attributes" data for each node 
@@ -308,9 +348,12 @@ class latent_signal_network:
             plt.show()        
 
         if write_data == True:
+            if option is None:
+                raise ValueError('Option for graph generator must not be none.')
             self.G = G.copy()
             self.X = X.copy()
-            self.hist_tv = np.copy(hist_tv)       
+            self.option = option.copy()
+            self.hist_tv = np.copy(hist_tv)
             self.ifwrite = True
         else:
             self.ifwrite = False 
@@ -344,6 +387,7 @@ class latent_signal_network:
 
                        = 'l0_renomalize': apply l0_threshold then add sum(residual_energy) to each remaining eigval
                        = 'rescale': new_eigval =  option['weights'] * eigval
+                       = 'sigmoid_threshold':  eigma_new = soft_theshold(eigma_old*1/(1+exp(rate*(i+1-shift))), bias)
 
              return Graph G, transformed data X, and initial data X_r
 
@@ -408,6 +452,7 @@ class latent_signal_network:
 
                        = 'l0_renomalize': apply l0_threshold then add sum(residual_energy) to each remaining eigval
                        = 'rescale': new_eigval =  option['weights'] * eigval
+                       = 'sigmoid_threshold':  eigma_new = soft_theshold(eigma_old*1/(1+exp(rate*(i+1-shift))), bias)
 
         '''
         if option['mat'] == 'adjacency_matrix':
@@ -462,7 +507,7 @@ class latent_signal_network:
 
             transformed_eigval = poly_fit(coeffs, eigval)
 
-        elif option['method'] == 'sigmoid':
+        elif option['method'] == 'sigmoid_threshold':
             try:
                 rate = option['rate']
             except:
@@ -632,6 +677,17 @@ class latent_signal_network:
     def get_edgelist(self, G):
         return G.edges()    
 
+
+    def get_pos_graph(self, G, choice):
+        if choice == 'newman' or choice == 'tree':
+            pos=nx.circular_layout(G, dim=2, scale=1.0, center=None)
+        elif choice == 'grid':
+            pos=dict(zip(G.nodes(), [np.asarray(u) for u in G.nodes()]))
+        elif 'bipartite' in choice:
+            pos=nx.nx_pydot.graphviz_layout(G, prog='dot')
+        else:
+            pos=nx.nx_pydot.graphviz_layout(G, prog='neato')
+        return pos
 
 
 
