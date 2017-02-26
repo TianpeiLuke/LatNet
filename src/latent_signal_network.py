@@ -12,25 +12,6 @@ from time import gmtime, strftime
 import time
 from sklearn.preprocessing import normalize
 
-
-
-
-def bipartite_undirected_random_graph(G_init, m, n, prob,  seed=None):
-
-    G_init.clear()
-    
-
-
-
-
-
-
-
-
-
-
-
-
 #===============================================================
 class latent_signal_network:
 
@@ -99,11 +80,17 @@ class latent_signal_network:
                           option['r'] = branches for each node
                           option['h'] = depth of the tree
 
-                  ='random_bipartite', a bipartite version of the binomial (Erdős-Rényi) graph.
+                  ='random_bipartite_binomial', a bipartite version of the binomial (Erdős-Rényi) graph.
                           size = [n, m], n and m are node size of two clusters 
                           prob = probability of adding an edge between two clusters
                           must import nx.algorithm.bipartite
+                          should be a connected graph
 
+                  ='random_bipartite_uniform', a bipartite version of the binomial (Erdős-Rényi) graph.
+                          size = [n, m], n and m are node size of two clusters 
+                          option['num_edges'] = number of edges selected that connect two clusters
+                          must import nx.algorithm.bipartite
+                          should be a connected graph
                   
  
          option['seed'] for random seed 
