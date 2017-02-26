@@ -66,3 +66,5 @@ If the data contains hidden variables, we can assume that the Gaussian network o
 $$(\mathbf{S}^{\*}, \mathbf{L}^{\*})= \arg\min\_{\mathbf{L}\;, \;\mathbf{S}} -\frac{m}{2}\log\det\left(\mathbf{S} - \mathbf{L}\right)+ \frac{m}{2}\text{tr}\left(\widehat{\mathbf{\Sigma}}\_{o}\left( \mathbf{S} - \mathbf{L}\right)\right) + \alpha\_{m} \left(\lambda \|\mathbf{S}\|\_{1}  + \|\mathbf{L}\|\_{\*} \right)$$
 $$\text{s.t. }\phantom{===}\; \mathbf{S}- \mathbf{L}\succeq \mathbf{0}$$
 $$\phantom{===}\; \mathbf{L}\succeq \mathbf{0}$$
+
+The estimated precision matrix $\mathbf{\Theta}\_{o}= \mathbf{S} - \mathbf{L}$. Note that $\mathbf{\Theta}\_{o}$ is not sparse itself, since after marginalization, the conditional independence of data is lost. .
