@@ -59,6 +59,7 @@ $$
 where $\mathbf{S} := \mathbf{X}\mathbf{X}^{T}/m$
 
 
+
 ## Latent variable Gaussian Graphical Model
 
 If the data contains hidden variables, we can assume that the Gaussian network on observed data is the marginal distribution of Gaussian network on (observed, latent). Assume that the observed sample covariance matrix is $\widehat{\mathbf{\Sigma}}\_{o}$. We can find its inverse covariance by solving 
@@ -67,4 +68,23 @@ $$(\mathbf{S}^{\*}, \mathbf{L}^{\*})= \arg\min\_{\mathbf{L}\;, \;\mathbf{S}} -\f
 $$\text{s.t. }\phantom{===}\; \mathbf{S}- \mathbf{L}\succeq \mathbf{0}$$
 $$\phantom{===}\; \mathbf{L}\succeq \mathbf{0}$$
 
-The estimated precision matrix $\widehat{\mathbf{\Theta}}\_{o}= \mathbf{S} - \mathbf{L}$. Note that $\widehat{\mathbf{\Theta}}\_{o}$ is not sparse itself, since after marginalization, the conditional independence of data is lost. .
+The estimated precision matrix $\widehat{\mathbf{\Theta}}\_{o}= \mathbf{S} - \mathbf{L}$. Note that $\widehat{\mathbf{\Theta}}\_{o}$ is not sparse itself, since after marginalization, the conditional independence of data is lost. 
+
+### Implementation of lasso with adaptive alpha
+
+We need to implement a modified version of graph Lasso
+$$
+   \widehat{\mathbf{J}\_{xx}} = \arg\min\_{\mathbf{J} \succeq \mathbf{0}} -\log\left( \det |\mathbf{J}| \right) + \text{tr}\left(\mathbf{S}\,\mathbf{J}\right) + \alpha\,\\|\mathbf{P}\odot \mathbf{J} \\|\_{1} 
+$$ 
+where $\mathbf{P}$ is a mask matrix with all zeros but a few elements and $\odot$ is the pointwise product.
+  
+I modified the `lasso_path`  in `sklearn.linear_model` packages, called it `adaptive_lasso`. Also there exists a `cython` code to implement the lasso algorithm with coordinate descent algorithm in c. I modified it so that it allows for adaptive $\alpha$ for each feature. I call it `cd_fast_adaptive`
+
+To compile the cython `.pyx` file, I first generate `.c` code
+
+`cython -a cd_fast_adaptive.pyx`
+
+Then compile it with `gcc`, adding Python library path in `-I/home/tianpei/anaconda3/include/python3.5m` and Blas in `-lcblas`
+
+`gcc -shared -pthread -fPIC -fwrapv -o2 -Wall -fno-strict-aliasing -lcblas -I/home/tianpei/anaconda3/include/python3.5m cd_fast_adaptive.c -o cd_fast_adaptive.so`
+
