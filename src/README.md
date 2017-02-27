@@ -88,7 +88,7 @@ To compile the cython `.pyx` file, I first generate `.c` code
 Then compile it with `gcc`, adding Python library path in `-I/home/tianpei/anaconda3/include/python3.5m` and Blas library in `-lcblas`
 
 
-`gcc -shared -pthread -fPIC -fwrapv -o2 -Wall -fno-strict-aliasing \
+`gcc -shared -pthread -fPIC -fwrapv -o2 -Wall -fno-strict-aliasing \`
 
-     -lcblas -I/home/tianpei/anaconda3/include/python3.5m cd_fast_adaptive.c -o cd_fast_adaptive.so`
+`-lcblas -I/home/tianpei/anaconda3/include/python3.5m cd_fast_adaptive.c -o cd_fast_adaptive.so`
 
