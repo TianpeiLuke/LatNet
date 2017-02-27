@@ -70,7 +70,7 @@ $$\phantom{===}\; \mathbf{L}\succeq \mathbf{0}$$
 
 The estimated precision matrix $\widehat{\mathbf{\Theta}}\_{o}= \mathbf{S} - \mathbf{L}$. Note that $\widehat{\mathbf{\Theta}}\_{o}$ is not sparse itself, since after marginalization, the conditional independence of data is lost. 
 
-### Implementation of lasso with adaptive alpha
+### Implementation of lasso with adaptive $\alpha$
 
 We need to implement an adaptive version of graph Lasso
 $$
