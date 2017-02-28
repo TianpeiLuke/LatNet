@@ -90,3 +90,6 @@ Then compile it with `gcc`, adding Python library path in `-I/home/tianpei/anaco
 
 `gcc -shared -pthread -fPIC -fwrapv -o2 -Wall -fno-strict-aliasing -lcblas -I/home/tianpei/anaconda3/include/python3.5m cd_fast_adaptive.c -o cd_fast_adaptive.so`
 
+Also, try to write `setup.py` using packages in `distutils.core`
+
+`python setup.py build_ext --inplace`
