@@ -78,18 +78,12 @@ $$
 $$ 
 where $\mathbf{P}$ is a mask matrix with all zeros but a few elements and $\odot$ is the pointwise product.
   
-I modified the `lasso_path`  in `sklearn.linear_model` packages, called it `adaptive_lasso`. Also there exists a `cython` code to implement the _Lasso_ with _coordinate descent_ algorithm in c. I modified it so that it allows for adaptive $\alpha$ for each feature. I call it `cd_fast_adaptive`
+I modified the `lasso_path` according to `sklearn.linear_model` packages in`adaptive_lasso`. Within `adaptive_lasso`, import a __Cython__ script named `cd_fast_adaptive.pyx`, which _Lasso_ with _coordinate descent_ algorithm in c. It allows for a different $\alpha\_i$ for each feature. See `cd_fast_adaptive.pyx`. The old implementation of _Lasso_ is wrapped in `cd_fast_fixed.pyx`. 
 
-To compile the cython `.pyx` file, I first generate `.c` code
+I write a `setup.py` file using `Configuration` instance in `numpy.distutils.misc_util`. See `setup.py` and `setup.example`. The latter complie a test function in `test.pyx`, which define a 2D-convolution function.
 
-`cython -a cd_fast_adaptive.pyx`
+To complie it, use the following command:
 
+`python3 setup.py build_ext --inplace`
 
-Then compile it with `gcc`, adding Python library path in `-I/home/tianpei/anaconda3/include/python3.5m` and Blas library in `-lcblas`
-
-
-`gcc -shared -pthread -fPIC -fwrapv -o2 -Wall -fno-strict-aliasing -lcblas -I/home/tianpei/anaconda3/include/python3.5m cd_fast_adaptive.c -o cd_fast_adaptive.so`
-
-Also, try to write `setup.py` using packages in `distutils.core`
-
-`python setup.py build_ext --inplace`
+Then load module package into python directly. 
