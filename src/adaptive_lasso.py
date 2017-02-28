@@ -11,8 +11,7 @@ from copy import deepcopy
 
 #import pyximport; pyximport.install()
 import sys
-sys.path.append('/home/tianpei/Dropbox/Codes/Python/LatNet/src/')
-import LatNet.src.cd_fast_adaptive
+import cd_fast_adaptive
 
 
 
@@ -394,9 +393,9 @@ def enet_path_adaptive(X, y, mask, l1_ratio=0.5, eps=1e-3, n_alphas=100, alphas=
                 X.indptr, y, X_sparse_scaling,
                 max_iter, tol, rng, random, positive)
         elif multi_output:
-            l1_reg_new = alpha* l1_ratio * n_samples
+            l1_reg_scalar = alpha* l1_ratio * n_samples
             model = cd_fast_adaptive.enet_coordinate_descent_multi_task(
-                coef_, l1_reg_new, l2_reg, X, y, max_iter, tol, rng, random)
+                coef_, l1_reg_scalar, l2_reg, X, y, max_iter, tol, rng, random)
         elif isinstance(precompute, np.ndarray):
             # We expect precompute to be already Fortran ordered when bypassing
             # checks
