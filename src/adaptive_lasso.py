@@ -10,7 +10,9 @@ from sklearn.covariance.empirical_covariance_ import log_likelihood
 from copy import deepcopy
 
 #import pyximport; pyximport.install()
-import cd_fast_adaptive
+import sys
+sys.path.append('/home/tianpei/Dropbox/Codes/Python/LatNet/src/')
+import LatNet.src.cd_fast_adaptive
 
 
 
