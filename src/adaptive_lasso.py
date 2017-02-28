@@ -1,16 +1,14 @@
 
 # -*- coding: utf-8 -*-
-
+import warnings
+import sys, os
 import numpy as np
-import scipy as sp
-from sklearn.linear_model import lars_path, lasso_path, ridge_regression
-from sklearn.linear_model.base import  _pre_fit
+from scipy import sparse
+from sklearn.linear_model.base import  _pre_fit, _preprocess_data
 from sklearn.utils import check_array
-from sklearn.covariance.empirical_covariance_ import log_likelihood
-from copy import deepcopy
+from sklearn.utils.extmath import safe_sparse_dot
+from sklearn.exceptions import ConvergenceWarning
 
-#import pyximport; pyximport.install()
-import sys
 import cd_fast_adaptive
 
 

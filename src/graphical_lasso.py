@@ -1,20 +1,9 @@
 
 # -*- coding: utf-8 -*-
-
 import numpy as np
-import networkx as nx
-from scipy.sparse.linalg import eigsh
-import networkx as nx
-import matplotlib.pyplot as plt
-import os
-from time import gmtime, strftime
-import scipy as sp
 import cvxpy as cvx
 from sklearn.linear_model import lars_path, lasso_path, ridge_regression
-from sklearn.linear_model.base import  _pre_fit
-from sklearn.utils import check_array
 from sklearn.covariance.empirical_covariance_ import log_likelihood
-from copy import deepcopy
 
 from adaptive_lasso import lasso_path_adaptive 
 #=============================================================================================================================
@@ -267,7 +256,7 @@ def sparse_inv_cov_glasso_mask(X, mask=None,  alpha=1, S_init=None, max_iter=100
         return sparse_inv_cov_glasso(X, alpha, S_init, max_iter, verbose, convg_threshold, return_costs)
    
     # mask must be symmetric 
-    if !np.array_equal(mask.T, mask):
+    if not np.array_equal(mask.T, mask):
         raise ValueError("Mask must be symmetric!")
     
 
