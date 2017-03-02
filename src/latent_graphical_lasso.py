@@ -72,118 +72,6 @@ def latent_variable_gmm_cvx(X_o, alpha=1, lambda_s= 1, S_init=None, verbose=Fals
 
 
 
-#def latent_variable_glasso_random(X_o, h_dim=None,  alpha=1, S_init=None, max_iter_out=100, max_iter_in=100, verbose=False, convg_threshold=1e-3, return_hists=False):
-#    '''
-#       A EM algorithm implementation of the Latent Variable Gaussian Graphical Model 
-#      
-#       see review of  "Venkat Chandrasekaran, Pablo A Parrilo, and Alan S Willsky. Latent variable graphical model selection via convex optimization. The Annals of Statistics, 40(4):1935–1967, 2012."
-#
-#
-#       Loop for t= 1,2,...,
-# 
-#       1. M-step:
-#          solve a sparse inverse covariance estimation using gLasso 
-#             with expectation of empirical covariance over (observed, latent) data
-#
-#       2. E-step:
-#          given the estimated sparse inverse covariance \Sigma_{(o,h)}, find the expectation of covariance over (o,h) given the observed covariance data S
-#
-#        = [
-#            [S, -S*Sigma_{oh} ]
-#            [-S*Sigma_{ho}, eye(h) + Sigma_{ho}*S*Sigma_{oh}]
-#          ]
-# 
-#    '''
-#    n, m = X_o.shape
-#    X_o -= np.mean(X_o, axis=0)
-#    X_o /= X_o.std(axis=0)
-#
-#    S = np.cov(X_o)
-#
-#    if h_dim is None or h_dim > n:
-#        h_dim = int(np.ceil(float(n)/2.0))   #size of hidden variables
-#        print('Invalid hidden dimension. Choose '+ str(h_dim))
-#
-#    n_all = n + h_dim
-#
-#    if alpha == 0:
-#        if return_costs:
-#            precision = np.linalg.pinv(S)
-#            cost = - 2. * log_likelihood(S, precision)
-#            cost += n_features * np.log(2 * np.pi)
-#            d_gap = np.sum(S * precision) - n
-#            return S, precision, (cost, d_gap)
-#        else:
-#            return S, np.linalg.pinv(S)
-#
-#    costs = list()
-#    if S_init is None:
-#        covariance_o = S.copy()
-#    else:
-#        covariance_o = S_init.copy()
-#    mle_estimate_o = S.copy()
-#
-#    # initialize a random block for precision_(oh)
-#    # generate hidden variables
-#    sigma_hidden = 1
-#    X_h = sigma_hidden*np.random.randn(h_dim, m)
-#    # stack rows 
-#    X_all = np.concatenate((X_o, X_h), axis=0)
-#    # compute the covariance of the new (o,h) data
-#    S_all = np.cov(X_all)
-#    S_all[np.ix_(np.arange(n), np.arange(n))] = covariance_o
-#    covariance_all = S_all.copy()
-#    # As a trivial regularization (Tikhonov like), we scale down the
-#    # off-diagonal coefficients of our starting point: This is needed, as
-#    # in the cross-validation the cov_init can easily be
-#    # ill-conditioned, and the CV loop blows. Beside, this takes
-#    # conservative stand-point on the initial conditions, and it tends to
-#    # make the convergence go faster.
-#    covariance_all *= 0.95
-#    diagonal_all = S_all.flat[::n_all+1]
-#    covariance_all.flat[::n_all+1] = diagonal_all
-#
-#    subblock1_index = np.arange(n)
-#    subblock2_index = n+ np.arange(h_dim)
-#
-#
-#    precision_all = np.linalg.pinv(covariance_all)
-#
-#    cov_all_list = list()
-#    cov_all_list.append(covariance_all)
-#    prec_all_list = list()
-#    prec_all_list.append(precision_all)
-#    # compute a mask that are all ones in subblock1
-#    scale = 1
-#    mask = scale*np.ones((n_all, n_all)) #np.zeros((n_all, n_all))
-#    mask[np.ix_(subblock1_index, subblock1_index)] = np.ones((n, n))
-#   
-#    # EM-loop
-#    for t in range(max_iter_out):
-#        # M-step: find the inverse covariance matrix for entire graph
-#        _, precision_t = sparse_inv_cov_glasso_mask(covariance_all, mask, alpha=alpha, max_iter=max_iter_in, convg_threshold=convg_threshold, verbose=verbose)
-#         
-#        precision_all = precision_t
-#        prec_all_list.append(precision_all)
-#  
-#        precision_oh = precision_all[np.ix_(subblock1_index, subblock2_index)]
-#        # E-step: find the expectation of covariance over (o, h)
-#        covariance_oh = -np.dot(covariance_o, precision_oh)
-#        covariance_hh = np.eye(h_dim) - np.dot(precision_oh.T, covariance_oh)  
-# 
-#        covariance_all[np.ix_(subblock1_index, subblock1_index)] = covariance_o
-#        covariance_all[np.ix_(subblock1_index, subblock2_index)] = covariance_oh
-#        covariance_all[np.ix_(subblock2_index, subblock1_index)] = covariance_oh.T 
-#        covariance_all[np.ix_(subblock2_index, subblock2_index)] = covariance_hh
-#
-#        cov_all_list.append(covariance_all)
-#
-#    if return_hists:
-#        return (covariance_all[np.ix_(subblock1_index, subblock1_index)], precision_all[np.ix_(subblock1_index, subblock1_index)],  cov_all_list, prec_all_list)
-#    else:
-#        return (covariance_all[np.ix_(subblock1_index, subblock1_index)], precision_all[np.ix_(subblock1_index, subblock1_index)]) 
-
-
 def latent_variable_glasso_data(X_o, X_h=None,  alpha=0.1, S_init=None, max_iter_out=100, max_iter_in=100, verbose=False, convg_threshold=1e-3, return_hists=False):
     '''
        A EM algorithm implementation of the Latent Variable Gaussian Graphical Model 
@@ -218,10 +106,8 @@ def latent_variable_glasso_data(X_o, X_h=None,  alpha=0.1, S_init=None, max_iter
         X_h = sigma_hidden*np.random.randn(h_dim, m)
     else:
         h_dim = X_h.shape[0]
-        #print('Invalid hidden dimension. Choose '+ str(h_dim))
 
     n_all = n + h_dim
-    #print(n_all)
 
     if alpha == 0:
         if return_costs:
@@ -240,8 +126,6 @@ def latent_variable_glasso_data(X_o, X_h=None,  alpha=0.1, S_init=None, max_iter
         covariance_o = S_init.copy()
     mle_estimate_o = S.copy()
 
-    # initialize a random block for precision_(oh)
-    # generate hidden variables
     # stack rows 
     X_all = np.concatenate((X_o, X_h), axis=0)
     # compute the covariance of the new (o,h) data
@@ -261,11 +145,6 @@ def latent_variable_glasso_data(X_o, X_h=None,  alpha=0.1, S_init=None, max_iter
     subblock1_index = np.arange(n)
     subblock2_index = n+ np.arange(h_dim)
 
-    #covariance_all[np.ix_(subblock1_index, subblock1_index)] = covariance_o
-    #covariance_all[np.ix_(subblock1_index, subblock2_index)] = covariance_oh
-    #covariance_all[np.ix_(subblock2_index, subblock1_index)] = covariance_oh.T 
-    #covariance_all[np.ix_(subblock2_index, subblock2_index)] = covariance_hh
-
     precision_all = np.linalg.pinv(covariance_all)
 
     cov_all_list = list()
@@ -279,11 +158,9 @@ def latent_variable_glasso_data(X_o, X_h=None,  alpha=0.1, S_init=None, max_iter
     # EM-loop
     for t in range(max_iter_out):
         # M-step: find the inverse covariance matrix for entire graph
-        #_, precision_t = sparse_inv_cov_glasso_mask(covariance_all, mask, alpha=alpha, max_iter=max_iter_in, convg_threshold=convg_threshold, verbose=verbose)
-        #_, precision_t = sparse_inv_cov_glasso_partial(covariance_all, subblock1_index, alpha=alpha, max_iter=max_iter_in, convg_threshold=convg_threshold, verbose=verbose)
+        # use a package in skggm to solve glaphical lasso with matrix regularizer
         precision_t, _, _, _, _, _ = quic(covariance_all, lam=alpha*mask)
 
-        #print(precision_t)
         precision_all = precision_t
         prec_all_list.append(precision_all)
         precision_oh = precision_all[np.ix_(subblock1_index, subblock2_index)]
@@ -340,10 +217,8 @@ def latent_variable_glasso_cvx(X_o, X_h=None,  alpha=0.1, S_init=None, max_iter_
         X_h = sigma_hidden*np.random.randn(h_dim, m)
     else:
         h_dim = X_h.shape[0]
-        #print('Invalid hidden dimension. Choose '+ str(h_dim))
 
     n_all = n + h_dim
-    #print(n_all)
 
     if alpha == 0:
         if return_costs:
@@ -362,8 +237,6 @@ def latent_variable_glasso_cvx(X_o, X_h=None,  alpha=0.1, S_init=None, max_iter_
         covariance_o = S_init.copy()
     mle_estimate_o = S.copy()
 
-    # initialize a random block for precision_(oh)
-    # generate hidden variables
     # stack rows 
     X_all = np.concatenate((X_o, X_h), axis=0)
     # compute the covariance of the new (o,h) data
@@ -379,20 +252,9 @@ def latent_variable_glasso_cvx(X_o, X_h=None,  alpha=0.1, S_init=None, max_iter_
     covariance_all *= 0.95
     diagonal_all = covariance_all.flat[::n_all+1]
     covariance_all.flat[::n_all+1] = diagonal_all
-    #np.zeros((n_all, n_all))
-    #print(covariance_all.shape)
-    #covariance_oh = (factor/np.sqrt(n*h_dim))*np.random.randn(n, h_dim)#-np.dot(covariance_o, precision_oh)
-    # by Schur complement
-    # covariance_hh - covariance_oh.T*inv(covariance_o)*covariance_oh \succeq 0 
-    #covariance_hh = np.eye(h_dim) #- np.dot(precision_oh.T, covariance_oh)  
 
     subblock1_index = np.arange(n)
     subblock2_index = n+ np.arange(h_dim)
-
-    #covariance_all[np.ix_(subblock1_index, subblock1_index)] = covariance_o
-    #covariance_all[np.ix_(subblock1_index, subblock2_index)] = covariance_oh
-    #covariance_all[np.ix_(subblock2_index, subblock1_index)] = covariance_oh.T 
-    #covariance_all[np.ix_(subblock2_index, subblock2_index)] = covariance_hh
 
     precision_all = np.linalg.pinv(covariance_all)
 
