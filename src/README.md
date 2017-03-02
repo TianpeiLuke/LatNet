@@ -78,7 +78,7 @@ $$
 $$ 
 where $\mathbf{P}$ is a mask matrix with all zeros but a few elements and $\odot$ is the pointwise product.
   
-Use the `skggm` package in the `download\_packages` directory. 
+Use the `skggm` package in the `download_packages` directory. 
 
 <!--
 I modified the `lasso_path` according to `sklearn.linear_model` packages in`adaptive_lasso`. Within `adaptive_lasso`, import a __Cython__ script named `cd_fast_adaptive.pyx`, which _Lasso_ with _coordinate descent_ algorithm in c. It allows for a different $\alpha\_i$ for each feature. See `cd_fast_adaptive.pyx`. The old implementation of _Lasso_ is wrapped in `cd_fast_fixed.pyx`.
