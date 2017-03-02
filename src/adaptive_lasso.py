@@ -6,6 +6,7 @@ import numpy as np
 from scipy import sparse
 from sklearn.linear_model.base import  _pre_fit, _preprocess_data
 from sklearn.utils import check_array
+from sklearn.utils.validation import check_random_state
 from sklearn.utils.extmath import safe_sparse_dot
 from sklearn.exceptions import ConvergenceWarning
 

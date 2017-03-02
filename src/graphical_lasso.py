@@ -1,9 +1,13 @@
 
 # -*- coding: utf-8 -*-
 import numpy as np
+from numpy.linalg import solve, cond, lstsq
 import cvxpy as cvx
 from sklearn.linear_model import lars_path, lasso_path, ridge_regression
 from sklearn.covariance.empirical_covariance_ import log_likelihood
+
+import matplotlib.pyplot as plt
+from time import gmtime, strftime
 
 from adaptive_lasso import lasso_path_adaptive 
 #=============================================================================================================================
@@ -171,72 +175,12 @@ def sparse_inv_cov_cvx(X, n, m, alpha):
 
     '''
     return np.cov(X)
-   
 
+#==========================================================================#
+#                                                                          #
+#             implementation of adaptive lasso                             #
+#==========================================================================#
 
-
-
-
-
-
-
-
-#def lasso_mask(X, y, rho, threshold=0.001, check_input=True):
-#    '''
-#        X: a symmetric matrix of size n
-#        y: a vector of size n
-#        rho: a vector of size n                 
-#
-#
-#         Friedman, Jerome, Trevor Hastie, Holger Höfling, and Robert Tibshirani. 
-#         "Pathwise coordinate optimization." 
-#         The Annals of Applied Statistics 1, no. 2 (2007): 302-332.
-#
-#         for each coordinate,
-#                   beta[j] = soft_thresholding(y[j] - np.dot(X, tmp_beta), rho[j] )
-#
-#    '''
-#    import pywt
-#    if check_input:
-#        X = check_array(X, 'csc', dtype=[np.float64, np.float32],
-#                        order='F', copy=copy_X)
-#        y = check_array(y, 'csc', dtype=X.dtype.type, order='F', copy=False,
-#                        ensure_2d=False)
-#
-#    
-#    X_copy = X.copy() + np.diag(rho)
-#    y_copy = y.copy()
-#    rho_copy = rho.copy()
-#    beta = np.zeros(X.shape[1])
-#    dis = 1
-#    iteration = 0
-#    while(dis > threshold):
-#        iteration += 1
-#        old_beta = deepcopy(beta)
-#        for j in range(len(beta)):
-#            if X_copy[j,j] == 0.0:
-#                continue
-#
-#            tmp_beta = deepcopy(beta)
-#            tmp_beta[j] = 0.0
-#            r_j = y_copy[j] - np.dot(X_copy[j,:], tmp_beta)
-#            beta[j] = soft_thresholding(r_j, rho_copy[j])/(X_copy[j,j])
-#            print("%d, %.3f,  %.3f"    % (iteration, r_j, beta[j]))
-#              
-#        dis = np.linalg.norm(beta - old_beta, 1)
-#
-#    coeff_ = beta
-#    return coeff_
-    
-
-
-
-
-
-#==========================================================================
-#  
-#             implementation of adaptive lasso
-#
 def sparse_inv_cov_glasso_mask(X, mask=None,  alpha=1, S_init=None, max_iter=100, verbose=False, convg_threshold=1e-3, return_costs=False):
     '''
         inverse covariance estimation by maximum log-likelihood estimate given X
@@ -252,7 +196,7 @@ def sparse_inv_cov_glasso_mask(X, mask=None,  alpha=1, S_init=None, max_iter=100
         Biostatistics 9, no. 3 (2008): 432-441.
 
     '''
-    if mask is None or np.array_equal(mask, np.ones((X.shape[0], X.shape[0]))):
+    if mask is None:
         return sparse_inv_cov_glasso(X, alpha, S_init, max_iter, verbose, convg_threshold, return_costs)
    
     # mask must be symmetric 
@@ -294,6 +238,7 @@ def sparse_inv_cov_glasso_mask(X, mask=None,  alpha=1, S_init=None, max_iter=100
  #+ alpha*np.eye(n, dtype=X.dtype)
     mle_estimate = emp_cov.copy()
     precision = np.linalg.pinv(covariance)
+    plot_mat(precision, [-2,2])
     indices = np.arange(n)
     try:
         d_gap = np.inf
@@ -303,20 +248,18 @@ def sparse_inv_cov_glasso_mask(X, mask=None,  alpha=1, S_init=None, max_iter=100
                 covariance_11 = np.ascontiguousarray(
                                      covariance[indices != i].T[indices != i])
                 covariance_12 = mle_estimate[indices != i , i]
-                #solve lasso for each column 
+                #solve adaptive lasso for each column 
                 alpha_min = alpha/(n-1)
                 mask_i = mask[indices!=i, i]
                 _, coeffs, _ = lasso_path_adaptive(X=covariance_11, y=covariance_12, 
                                              mask=mask_i, eps=1e-3, 
-                                             n_alphas=None, alphas=[alpha_min], 
+                                             n_alphas=None, alphas=[alpha_min],
                                              precompute=covariance_11, Xy=covariance_12,
                                              copy_X=True, coef_init= np.zeros(n-1),
-                                             verbose=verbose, return_n_iter=False, positive=False)
+                                  verbose=verbose, return_n_iter=False, positive=False)
                 
-                #_, _, coeffs = lars_path(covariance_11, covariance_12, Xy=covariance_12, 
-                #                         Gram=covariance_11, alpha_min = alpha_min, 
-                #                         copy_Gram = True, method='lars', return_path=False  ) 
                 #update the precision matrix
+                coeffs = np.squeeze(coeffs)
                 precision[i,i]   = 1./( covariance[i,i] - np.dot(covariance[indices != i, i], coeffs))
                 precision[indices != i, i] = -precision[i,i] * coeffs
                 precision[i, indices != i] = -precision[i,i] * coeffs
@@ -324,7 +267,7 @@ def sparse_inv_cov_glasso_mask(X, mask=None,  alpha=1, S_init=None, max_iter=100
                 covariance[indices != i ,i] = temp_coeffs
                 covariance[i, indices != i] = temp_coeffs
     
-            plot_mat(precision)
+            plot_mat(precision, [-2,2])
             d_gap = _dual_gap(mle_estimate, precision, alpha)
             cost = _objective_mask(mle_estimate, precision, alpha, mask)
             #print("iter "+ str(t) +"cost " + str(cost))
@@ -355,10 +298,149 @@ def sparse_inv_cov_glasso_mask(X, mask=None,  alpha=1, S_init=None, max_iter=100
 
 
 
-def plot_mat(mat, savefigure=False):
+
+def sparse_inv_cov_glasso_partial(X, observed_indices=None,  alpha=1, S_init=None, max_iter=100, verbose=False, convg_threshold=1e-3, return_costs=False):
+    '''
+        inverse covariance estimation by maximum log-likelihood estimate given X
+
+        -log p(X | J) + alpha ||J||_{1} := -log(det(J)) + tr(S*J) + alpha*||mask*J||_{1}
+
+        S:= np.dot(X,X.T)/m
+
+        using gLasso with mask
+
+        Friedman, Jerome, Trevor Hastie, and Robert Tibshirani. 
+        "Sparse inverse covariance estimation with the graphical lasso." 
+        Biostatistics 9, no. 3 (2008): 432-441.
+
+    '''
+    if observed_indices is None:
+        return sparse_inv_cov_glasso(X, alpha, S_init, max_iter, verbose, convg_threshold, return_costs)
+   
+    n, m = X.shape
+    
+    if not set(observed_indices).issubset(set(list(range(n)))):
+        raise ValueError("observed indices should be in range(n)")
+    
+    emp_cov = np.cov(X)
+
+    if alpha == 0:
+        if return_costs:
+            precision = np.linalg.pinv(emp_cov)
+            cost = - 2. * log_likelihood(emp_cov, precision)
+            cost += n_features * np.log(2 * np.pi)
+            d_gap = np.sum(emp_cov * precision) - n
+            return emp_cov, precision, (cost, d_gap)
+        else:
+            return emp_cov, np.linalg.pinv(emp_cov)
+
+    costs = list()
+    if S_init is None:
+        covariance = emp_cov.copy()
+    else:
+        covariance = S_init.copy()
+    # As a trivial regularization (Tikhonov like), we scale down the
+    # off-diagonal coefficients of our starting point: This is needed, as
+    # in the cross-validation the cov_init can easily be
+    # ill-conditioned, and the CV loop blows. Beside, this takes
+    # conservative stand-point on the initial conditions, and it tends to
+    # make the convergence go faster.
+
+    covariance *= 0.95
+    diagonal = emp_cov.flat[::n+1]
+    covariance.flat[::n+1] = diagonal
+
+ #+ alpha*np.eye(n, dtype=X.dtype)
+    mle_estimate = emp_cov.copy()
+    precision = np.linalg.pinv(covariance)
+    plot_mat(precision, [-2,2])
+    indices = np.arange(n)
+    try:
+        d_gap = np.inf
+        for t in range(max_iter):
+            for i in np.arange(n):
+                if i in observed_indices:
+                    #index = [x for x in indices if x !=i]
+                    covariance_11 = np.ascontiguousarray(
+                                         covariance[indices != i].T[indices != i])
+                    covariance_12 = mle_estimate[indices != i , i]
+                    #solve lasso for each column
+                    alpha_min = alpha/(n-1)
+                    #alpha_min = float(round(alpha_min, 5))
+                    _, _, coeffs = lars_path(covariance_11, covariance_12, Xy=covariance_12, 
+                                         Gram=covariance_11, alpha_min = alpha_min, 
+                                         copy_Gram = True, method='lars', return_path=False  ) 
+                    
+                    #update the precision matrix
+                    precision[i,i]   = 1./( covariance[i,i] - np.dot(covariance[indices != i, i], coeffs))
+                    precision[indices != i, i] = -precision[i,i] * coeffs
+                    precision[i, indices != i] = -precision[i,i] * coeffs
+                    temp_coeffs = np.dot(covariance_11, coeffs)
+                    covariance[indices != i ,i] = temp_coeffs
+                    covariance[i, indices != i] = temp_coeffs
+                else:
+                    covariance_11 = np.ascontiguousarray(
+                                         covariance[indices != i].T[indices != i])
+                    covariance_12 = mle_estimate[indices != i , i]
+                    print(cond(covariance_11)) 
+                    if cond(covariance_11) < 100:
+                        coeffs = solve(covariance_11, covariance_12)
+                    else:
+                        X_o = X[indices != i,:]
+                        X_h = X[i,:]
+                        coeffs, _, _, _ = lstsq(X_o.T, X_h.T) #solve for least square
+                    #print(coeffs)
+                    #coeffs = np.asarray(coeffs)
+                    precision[i,i]   = 1./( covariance[i,i] - np.dot(covariance[indices != i, i], coeffs))
+                    precision[indices != i, i] = -precision[i,i] * coeffs
+                    precision[i, indices != i] = -precision[i,i] * coeffs
+                    temp_coeffs = np.dot(covariance_11, coeffs)
+                    covariance[indices != i ,i] = temp_coeffs
+                    covariance[i, indices != i] = temp_coeffs
+                   
+            plot_mat(precision, [-2,2])
+            d_gap = _dual_gap(mle_estimate, precision, alpha)
+            cost = _objective(mle_estimate, precision, alpha)
+            #print("iter "+ str(t) +"cost " + str(cost))
+            
+            if verbose:
+                print(
+                    '[graph_lasso] Iteration % 3i, cost % 3.2e, dual gap %.3e'
+                    % (t, cost, d_gap))
+            if return_costs:
+                costs.append((cost, d_gap))
+            if np.abs(d_gap) < convg_threshold:
+                break
+            if not np.isfinite(cost) and t > 0:
+                    raise FloatingPointError('Non SPD result: the system is '
+                                             'too ill-conditioned for this solver')
+        else:
+            #this triggers if not break command occurs
+            print("The algorithm did not coverge. Try increasing the max number of iterations.")
+    except FloatingPointError as e:
+        e.args = (e.args[0]
+                  + '. The system is too ill-conditioned for this solver',)
+        raise e
+
+    if return_costs:
+        return covariance, precision, costs
+    else:
+        return (covariance ,  precision )
+
+
+
+
+
+
+
+
+
+
+
+def plot_mat(mat, vrange, savefigure=False):
     fig2= plt.figure(2)
     ax = fig2.add_subplot(111)
-    cax = ax.matshow(mat)
+    cax = ax.matshow(mat, vmin=vrange[0], vmax=vrange[1])
     fig2.colorbar(cax)
     
     plt.show()

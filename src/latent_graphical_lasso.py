@@ -13,7 +13,7 @@ from sklearn.covariance.empirical_covariance_ import log_likelihood
 from graphical_lasso import *
 
 
-def latent_variable_gmm_cvx(X_o, alpha=1, lambda_s= 1, S_init=None, verbose=False, convg_threshold=1e-3, return_hists=False):
+def latent_variable_gmm_cvx(X_o, alpha=1, lambda_s= 1, S_init=None, verbose=False):
     '''
           A cvx implementation of  the Latent Variable Gaussian Graphical Model 
       
@@ -64,7 +64,7 @@ def latent_variable_gmm_cvx(X_o, alpha=1, lambda_s= 1, S_init=None, verbose=Fals
   
     # solve the problem
     problem = cvx.Problem(objective, constraints)
-    problem.solve(solver=CVXOPT, verbose = verbose)
+    problem.solve(verbose = verbose)
 
     return (S.value, L.value)
 
@@ -153,7 +153,8 @@ def latent_variable_glasso_random(X_o, h_dim=None,  alpha=1, S_init=None, max_it
     prec_all_list = list()
     prec_all_list.append(precision_all)
     # compute a mask that are all ones in subblock1
-    mask = 1e-4*np.ones((n_all, n_all)) #np.zeros((n_all, n_all))
+    scale = 1
+    mask = scale*np.ones((n_all, n_all)) #np.zeros((n_all, n_all))
     mask[np.ix_(subblock1_index, subblock1_index)] = np.ones((n, n))
    
     # EM-loop
@@ -277,7 +278,8 @@ def latent_variable_glasso_data(X_o, X_h=None,  alpha=0.1, S_init=None, max_iter
     # EM-loop
     for t in range(max_iter_out):
         # M-step: find the inverse covariance matrix for entire graph
-        _, precision_t = sparse_inv_cov_glasso_mask(covariance_all, mask, alpha=alpha, max_iter=max_iter_in, convg_threshold=convg_threshold, verbose=verbose)
+        #_, precision_t = sparse_inv_cov_glasso_mask(covariance_all, mask, alpha=alpha, max_iter=max_iter_in, convg_threshold=convg_threshold, verbose=verbose)
+        _, precision_t = sparse_inv_cov_glasso_partial(covariance_all, subblock1_index, alpha=alpha, max_iter=max_iter_in, convg_threshold=convg_threshold, verbose=verbose)
          
         precision_all = precision_t
         prec_all_list.append(precision_all)
