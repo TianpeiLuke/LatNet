@@ -78,7 +78,7 @@ $$
 $$ 
 where $\mathbf{P}$ is a mask matrix with all zeros but a few elements and $\odot$ is the pointwise product.
   
-I modified the `lasso_path` according to `sklearn.linear_model` packages in`adaptive_lasso`. Within `adaptive_lasso`, import a __Cython__ script named `cd_fast_adaptive.pyx`, which _Lasso_ with _coordinate descent_ algorithm in c. It allows for a different $\alpha\_i$ for each feature. See `cd_fast_adaptive.pyx`. The old implementation of _Lasso_ is wrapped in `cd_fast_fixed.pyx`. 
+#(I modified the `lasso_path` according to `sklearn.linear_model` packages in`adaptive_lasso`. Within `adaptive_lasso`, import a __Cython__ script named `cd_fast_adaptive.pyx`, which _Lasso_ with _coordinate descent_ algorithm in c. It allows for a different $\alpha\_i$ for each feature. See `cd_fast_adaptive.pyx`. The old implementation of _Lasso_ is wrapped in `cd_fast_fixed.pyx`.) 
 
 I write a `setup.py` file using `Configuration` instance in `numpy.distutils.misc_util`. See `setup.py` and `setup.example`. The latter complie a test function in `test.pyx`, which define a 2D-convolution function.
 
