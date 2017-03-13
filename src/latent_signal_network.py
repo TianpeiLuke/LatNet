@@ -38,6 +38,9 @@ def glasso_nonzero_ratio(precision):
     total_triu = n*(n-1)/2
     return (nonzeros, float(nonzeros)/float(total_triu))
 
+def graph_comparison_norm(Laplacian, Laplacian_est, norm_type='fro'):
+    return np.linalg.norm(Laplacian - Laplacian_est, norm_type)/np.linalg.norm(Laplacian, norm_type)
+
 
 
 def graph_precision_recall_curve(Laplacian, Laplacian_est):
