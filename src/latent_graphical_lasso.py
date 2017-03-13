@@ -72,7 +72,7 @@ def latent_variable_gmm_cvx(X_o, alpha=1, lambda_s= 1, S_init=None, verbose=Fals
 
 
 
-def latent_variable_glasso_data(X_o, X_h=None,  alpha=0.1, S_init=None, max_iter_out=100, max_iter_in=100, verbose=False, convg_threshold=1e-3, return_hists=False):
+def latent_variable_glasso_data(X_o, X_h=None,  alpha=0.1, S_init=None, max_iter_out=100, verbose=False, threshold=1e-1, return_hists=False):
     '''
        A EM algorithm implementation of the Latent Variable Gaussian Graphical Model 
       
@@ -151,15 +151,19 @@ def latent_variable_glasso_data(X_o, X_h=None,  alpha=0.1, S_init=None, max_iter
     cov_all_list.append(covariance_all)
     prec_all_list = list()
     prec_all_list.append(precision_all)
+
+    dsol_list = list()
     # compute a mask that are all ones in subblock1
     mask = np.zeros((n_all, n_all))
     mask[np.ix_(subblock1_index, subblock1_index)] = np.ones((n, n))
    
     # EM-loop
-    for t in range(max_iter_out):
+    from tqdm import tqdm
+    for t in tqdm(range(max_iter_out)):
         # M-step: find the inverse covariance matrix for entire graph
         # use a package in skggm to solve glaphical lasso with matrix regularizer
         precision_t, _, _, _, _, _ = quic(covariance_all, lam=alpha*mask)
+        
 
         precision_all = precision_t
         prec_all_list.append(precision_all)
@@ -174,9 +178,21 @@ def latent_variable_glasso_data(X_o, X_h=None,  alpha=0.1, S_init=None, max_iter
         covariance_all[np.ix_(subblock2_index, subblock2_index)] = covariance_hh
 
         cov_all_list.append(covariance_all)
+        if t == 0 :
+            precision_pre = precision_t
+            if verbose: print("| d-sol | ")
+        else:
+            diff = np.linalg.norm(precision_pre-precision_t)/np.sqrt(n)
+            dsol_list.append(diff)
+            if verbose: print("| %.3f  |" % (diff) )
+            if diff < threshold:
+                break
+            else:
+                precision_pre = precision_t
+             
 
     if return_hists:
-        return (covariance_all[np.ix_(subblock1_index, subblock1_index)], precision_all[np.ix_(subblock1_index, subblock1_index)],  cov_all_list, prec_all_list)
+        return (covariance_all[np.ix_(subblock1_index, subblock1_index)], precision_all[np.ix_(subblock1_index, subblock1_index)],  cov_all_list, prec_all_list, dsol_list)
     else:
         return (covariance_all[np.ix_(subblock1_index, subblock1_index)], precision_all[np.ix_(subblock1_index, subblock1_index)]) 
 

@@ -3,6 +3,7 @@
 import numpy as np
 #from numpy.linalg import eigvalsh, eigh
 from scipy.sparse.linalg import eigsh
+from scipy.sparse import issparse,  csr_matrix, isspmatrix, isspmatrix_csr
 import networkx as nx
 from networkx.algorithms import bipartite
 import matplotlib.pyplot as plt
@@ -11,6 +12,57 @@ import os
 from time import gmtime, strftime
 import time
 from sklearn.preprocessing import normalize
+from sklearn.metrics import precision_recall_curve, average_precision_score, auc
+
+
+def graph_diff(Laplacian, Laplacian_est):
+    if np.linalg.norm(Laplacian_est-Laplacian_est.T, 'fro') > 1e-5:
+        raise ValueError("Laplacian_estimate must be symmetric")
+        
+    n = Laplacian.shape[0]
+    n_e = Laplacian_est.shape[0]
+    if n != n_e:
+        raise ValueError("Dimension of Laplacian must be equal to "+ str(n)+"x" + str(n)+".")
+   
+    Laplacian_binary = np.sign(abs(Laplacian))
+    Laplacian_est_binary = np.sign(abs(Laplacian_est))
+    diff = sum(sum(abs(np.triu(Laplacian_binary, 1) - np.triu(Laplacian_est_binary, 1))))
+    total_triu = n*(n-1)/2
+    return (diff, diff/total_triu)
+
+def glasso_nonzero_ratio(precision):
+        
+    n = precision.shape[0]
+    precision_binary = np.sign(abs(precision))
+    nonzeros = sum(sum(abs(np.triu(precision_binary, 0))))
+    total_triu = n*(n-1)/2
+    return (nonzeros, float(nonzeros)/float(total_triu))
+
+
+
+def graph_precision_recall_curve(Laplacian, Laplacian_est):
+    if np.linalg.norm(Laplacian_est-Laplacian_est.T, 'fro') > 1e-5:
+        raise ValueError("Laplacian_estimate must be symmetric")
+        
+    n = Laplacian.shape[0]
+    n_e = Laplacian_est.shape[0]
+    if n != n_e:
+        raise ValueError("Dimension of Laplacian must be equal to "+ str(n)+"x" + str(n)+".")
+    from scipy.special import betainc
+    Laplacian_binary = np.triu(np.sign(abs(Laplacian)))
+    #Laplacian_est[np.where(abs(Laplacian_est) > 1)] /= abs(Laplacian_est[np.where(abs(Laplacian_est) > 1)])
+    Laplacian_est_binary = 1- (1-abs(Laplacian_est))**2 #betainc(0.5, 0.5, np.sign(abs(Laplacian_est))) #1- (1-abs(Laplacian_est))**2
+
+    # compare the off-diagnoal term
+    y_true = np.squeeze(Laplacian_binary[np.triu_indices(n, k=1)])
+    prob_pred = np.squeeze(Laplacian_est_binary[np.triu_indices(n, k=1)])
+    #print(np.squeeze(y_true).shape)
+    #print(prob_pred.shape)
+    precision, recall, thresholds = precision_recall_curve(y_true, prob_pred)
+    average_precision = average_precision_score(y_true, prob_pred)
+    auc_pre_recall = auc(recall, precision)
+    return (precision, recall, average_precision, auc_pre_recall)
+
 
 #===============================================================
 class latent_signal_network:
@@ -45,7 +97,15 @@ class latent_signal_network:
 
 
 
-    def graph_build(self, size, prob, option, write_graph=False, save_fig=False):
+    def graph_from_sparse_adjmat(self, adjMat):
+        if not isspmatrix(adjMat):
+            adjMat = csr_matrix(adjMat)
+        G = nx.from_scipy_sparse_matrix(adjMat) 
+        return G 
+
+
+
+    def graph_build(self, size, prob, option, node_color=None, write_graph=False, save_fig=False):
         '''
             build graph with two random partition. prob = [p_in, p_out], within-cluster edge prob and between-cluster edge prob. 
 
@@ -108,7 +168,10 @@ class latent_signal_network:
             G = nx.random_partition_graph(sizes=size, p_in=p_in, p_out=p_out, seed=seed, directed=False)
             pos = nx.nx_pydot.graphviz_layout(G)
             fig1 = plt.figure(1)
-            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*size[0]+['b']*size[1], font_color='w')
+            if node_color is None:
+                node_color = ['r']*size[0]+['b']*size[1]
+
+            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
                 fig1.savefig(filename, format="eps")
@@ -126,7 +189,9 @@ class latent_signal_network:
             G=  nx.newman_watts_strogatz_graph(size, k=k, p=prob, seed=seed)
             pos = nx.circular_layout(G, dim=2, scale=1.0, center=None)
             fig1 = plt.figure(1)
-            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*size, font_color='w')
+            if node_color is None:
+                node_color = ['r']*size
+            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
                 fig1.savefig(filename, format="eps")
@@ -144,7 +209,9 @@ class latent_signal_network:
                 size = sum(size)
             pos = nx.nx_pydot.graphviz_layout(G)
             fig1 = plt.figure(1)
-            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*size, font_color='w')
+            if node_color is None:
+                node_color = ['r']*size
+            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
                 fig1.savefig(filename, format="eps")
@@ -165,7 +232,9 @@ class latent_signal_network:
             G = nx.grid_2d_graph(m=size[0], n=size[1])
             pos = dict(zip(G.nodes(), [np.asarray(u) for u in G.nodes()]))
             fig1 = plt.figure(1)
-            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*sum(size), font_color='w')
+            if node_color is None:
+                node_color = ['r']*sum(size)
+            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
                 fig1.savefig(filename, format="eps")
@@ -179,7 +248,9 @@ class latent_signal_network:
             G = nx.random_powerlaw_tree(n=size, gamma=gamma, seed=seed, tries=tries)
             pos = nx.circular_layout(G, dim=2, scale=1.0, center=None) #nx.shell_layout(G)#nx.spring_layout(G) #nx.nx_pydot.graphviz_layout(G)
             fig1 = plt.figure(1)
-            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*size, font_color='w')
+            if node_color is None:
+                node_color = ['r']*size
+            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
                 fig1.savefig(filename, format="eps")
@@ -196,7 +267,9 @@ class latent_signal_network:
             G = nx.balanced_tree(r=r, h=h, create_using=nx.Graph())
             pos = nx.nx_pydot.graphviz_layout(G)
             fig1 = plt.figure(1)
-            nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=['r']*len(pos), font_color='w')
+            if node_color is None:
+                node_color = ['r']*len(pos)
+            nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=node_color, font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
                 fig1.savefig(filename, format="eps")
@@ -211,7 +284,9 @@ class latent_signal_network:
             if not nx.is_connected(G): #must be connected
                 raise ValueError("Not connected. Please increase the edge probability.")
             fig1 = plt.figure(1)
-            nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=['r']*size[0]+['b']*size[1], font_color='w')
+            if node_color is None:
+                node_color = ['r']*size[0]+['b']*size[1]
+            nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=node_color, font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
                 fig1.savefig(filename, format="eps")
@@ -236,7 +311,9 @@ class latent_signal_network:
             if not nx.is_connected(G): #must be connected
                 raise ValueError("Not connected. Please increase the edge probability.")
             fig1 = plt.figure(1)
-            nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=['r']*size[0]+['b']*size[1], font_color='w')
+            if node_color is None:
+                node_color = ['r']*size[0]+['b']*size[1]
+            nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=node_color, font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
                 fig1.savefig(filename, format="eps")
@@ -375,6 +452,9 @@ class latent_signal_network:
                        = 'l0_renomalize': apply l0_threshold then add sum(residual_energy) to each remaining eigval
                        = 'rescale': new_eigval =  option['weights'] * eigval
                        = 'sigmoid_threshold':  eigma_new = soft_theshold(eigma_old*1/(1+exp(rate*(i+1-shift))), bias)
+                       = 'inverse_sqrt': eigma_new = 1/sqrt(eigma_old+ epsilon) for eigma_old
+                       = 'inverse_poly'
+                                        coff0 + coeff1*x**-1 + coeff2*x**-2 + ... + coffd*x**-d
 
              return Graph G, transformed data X, and initial data X_r
 
@@ -440,10 +520,13 @@ class latent_signal_network:
                        = 'l0_renomalize': apply l0_threshold then add sum(residual_energy) to each remaining eigval
                        = 'rescale': new_eigval =  option['weights'] * eigval
                        = 'sigmoid_threshold':  eigma_new = soft_theshold(eigma_old*1/(1+exp(rate*(i+1-shift))), bias)
+                       = 'inverse_sqrt': eigma_new = 1/sqrt(eigma_old+ epsilon) for eigma_old
+                       = 'inverse_poly'
+                                        coff0 + coeff1*x**-1 + coeff2*x**-2 + ... + coffd*x**-d
 
         '''
         if option['mat'] == 'adjacency_matrix':
-            Mat = nx.adjacency_matrix(G).todense()
+            Mat = nx.adjacency_matrix(G, weight=None).todense()
             eigval_, eigvec_ = np.linalg.eigh(Mat)
             #for adjacency matrix in decreasing order
             eig_index = np.argsort(abs(eigval_))[::-1]            
@@ -451,13 +534,13 @@ class latent_signal_network:
             eigvec = eigvec_[:, eig_index]
 
         elif option['mat'] == 'laplacian_matrix':
-            Mat = nx.normalized_laplacian_matrix(G).todense()
+            Mat = nx.normalized_laplacian_matrix(G, weight=None).todense()
             eigval_, eigvec_ = np.linalg.eigh(Mat)
             #for laplacian matrix in increasing order
             eig_index = np.argsort(eigval_)
             eigval = eigval_[eig_index]
             # find the inverse of laplacian
-            eigval[1:len(eigval)] = 1/eigval[1:len(eigval)]
+            #eigval[1:len(eigval)] = 1/eigval[1:len(eigval)]
             eigvec = eigvec_[:, eig_index]
             
 
@@ -488,10 +571,8 @@ class latent_signal_network:
                 coeffs = option['coeffs']
             except KeyError:
                 coeffs = [0,1]
-
             def poly_fit(coeffs, sig):
                 return sum([p*(sig**i) for i, p in enumerate(coeffs)])
-
             transformed_eigval = poly_fit(coeffs, eigval)
 
         elif option['method'] == 'sigmoid_threshold':
@@ -537,6 +618,30 @@ class latent_signal_network:
 
             transformed_eigval = weights * eigval
         
+        elif option['method'] == 'inverse_sqrt':
+            try:
+               eps = option['eps']
+            except KeyError:
+               eps = 1e-4
+
+            nonzeros_indices = np.argwhere(eigval> 1e-4)
+            transformed_eigval = eigval.copy()
+            #print(eigval[nonzeros_indices])
+            transformed_eigval[nonzeros_indices] = 1/np.sqrt(eps + transformed_eigval[nonzeros_indices])
+            #transformed_eigval[eigval.argmin()] = 0
+
+        elif option['method'] == 'inverse_poly':
+            try:
+                coeffs = option['coeffs']
+            except KeyError:
+                coeffs = [0,1]
+            def poly_fit(coeffs, sig):
+                return sum([p*(sig**i) for i, p in enumerate(coeffs)])
+            nonzeros_indices = np.argwhere(eigval> 1e-4)
+            transformed_eigval = eigval.copy()
+            #print(eigval[nonzeros_indices])
+            transformed_eigval[nonzeros_indices] = 1/transformed_eigval[nonzeros_indices]
+            transformed_eigval = poly_fit(coeffs, transformed_eigval)
 
         if show_plot:
             fig = plt.figure(figsize=(15,6))
@@ -562,8 +667,8 @@ class latent_signal_network:
         return (transformed_eigval, np.asarray(eigvec), eigval) 
 
 
-    def get_normalized_laplacian(self, G):
-        laplacian = nx.normalized_laplacian_matrix(G).todense()
+    def get_normalized_laplacian(self, G, weight=None):
+        laplacian = nx.normalized_laplacian_matrix(G, weight=weight).todense()
         return np.asarray(laplacian)
 
 
@@ -663,6 +768,133 @@ class latent_signal_network:
 
     def get_edgelist(self, G):
         return G.edges()    
+
+
+
+    def draw(self, G, option, pos=None, pos_init=None, fontsize=8, font_color = 'k', node_size = 8, save_fig = False):
+        seed = option['seed']
+        node_dim = option['node_dim']
+        try:
+            node_color = option['draw_node_color']
+        except KeyError:
+            node_color = ['r']*len(G)
+
+        if len(node_color) != len(G):
+            node_color = ['r']*len(G)
+
+        try:
+            scale = option['draw_scale']
+        except KeyError:
+            scale = 100
+        #===========================================================================
+        if option['model'] == 'partition': 
+            pos = nx.nx_pydot.graphviz_layout(G)
+            fig1 = plt.figure(1)
+            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize=fontsize, node_color=node_color, font_color=font_color, node_size=node_size)
+            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+            if save_fig == True:
+                fig1.savefig(filename, format="eps")
+             
+
+        elif option['model'] == 'newman':
+            pos = nx.circular_layout(G, dim=2, scale=scale, center=None)
+            fig1 = plt.figure(1)
+            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize=fontsize, node_color=node_color, font_color=font_color, node_size=node_size)
+            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+            if save_fig == True:
+                fig1.savefig(filename, format="eps")
+
+        elif option['model'] == 'binomial':
+            pos = nx.nx_pydot.graphviz_layout(G)
+            fig1 = plt.figure(1)
+            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize=fontsize, node_color=node_color, font_color=font_color, node_size=node_size)
+            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+            if save_fig == True:
+                fig1.savefig(filename, format="eps")
+
+        elif option['model'] == 'power':
+            pos = nx.nx_pydot.graphviz_layout(G)
+            fig1 = plt.figure(1)
+            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize=fontsize, node_color=node_color, font_color=font_color, node_size=node_size)
+            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+            if save_fig == True:
+                fig1.savefig(filename, format="eps")
+
+
+        elif option['model'] == 'grid':
+            pos = dict(zip(G.nodes(), [np.asarray(u) for u in G.nodes()]))
+            fig1 = plt.figure(1)
+            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize=fontsize, node_color=node_color, font_color=font_color, node_size=node_size)
+            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+            if save_fig == True:
+                fig1.savefig(filename, format="eps")
+        
+        elif option['model'] == 'tree':
+            pos = nx.circular_layout(G, dim=2, scale=scale, center=None) #nx.shell_layout(G)#nx.spring_layout(G) #nx.nx_pydot.graphviz_layout(G)
+            fig1 = plt.figure(1)
+            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize=fontsize, node_color=node_color, font_color=font_color, node_size=node_size)
+            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+            if save_fig == True:
+                fig1.savefig(filename, format="eps")
+    
+        elif option['model'] == 'balanced_tree':
+            pos = nx.nx_pydot.graphviz_layout(G)
+            fig1 = plt.figure(1)
+            nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize=fontsize, node_color=node_color, font_color=font_color, node_size=node_size)
+            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+            if save_fig == True:
+                fig1.savefig(filename, format="eps")
+
+
+        elif option['model'] == 'bipartite_binomial' or option['model'] == 'bipartite_uniform':
+            node_sets = nx.algorithms.bipartite.sets(G)
+            pos = nx.nx_pydot.graphviz_layout(G, prog='dot')
+            if not nx.is_connected(G): #must be connected
+                raise ValueError("Not connected. Please increase the edge probability.")
+            fig1 = plt.figure(1)
+            nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize=fontsize, node_color=node_color, font_color=font_color, node_size=node_size)
+            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+            if save_fig == True:
+                fig1.savefig(filename, format="eps")
+
+        else: 
+            if pos is None:
+                pos = nx.spring_layout(G, pos=pos_init, scale=scale, iterations=100) #nx.nx_pydot.graphviz_layout(G)
+
+            fig1 = plt.figure(1)
+            nx.draw(G, pos=pos, fontsize=fontsize, node_color=node_color, font_color=font_color, node_size=node_size)
+            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+            if save_fig == True:
+                fig1.savefig(filename, format="eps")
+
+        return pos
+
+
+    def draw_degree_rank(G, save_fig=False):
+        degree_sequence=sorted(nx.degree(G).values(),reverse=True) # degree sequence
+        #print "Degree sequence", degree_sequence
+        dmax=max(degree_sequence)
+        fig3 = plt.figure(3) 
+        plt.loglog(degree_sequence,'b-',marker='o')
+        plt.title("Degree rank plot")
+        plt.ylabel("degree")
+        plt.xlabel("rank")
+        
+        # draw graph in inset
+        plt.axes([0.45,0.45,0.45,0.45])
+        Gcc=sorted(nx.connected_component_subgraphs(G), key = len, reverse=True)[0]
+        pos=nx.spring_layout(Gcc)
+        plt.axis('off')
+        nx.draw_networkx_nodes(Gcc,pos,node_size=20)
+        nx.draw_networkx_edges(Gcc,pos,alpha=0.4)
+        
+        filename = "../figures/"+strftime("%d%m%Y_%H%M%S", gmtime()) + "_degree_rank_plot.eps"
+        #filename = "../figures/"+strftime("%d%m%Y_%H%M%S", gmtime()) + "_eigenvalue_adjMat.eps"
+        if save_fig : fig3.savefig(filename)
+        plt.show()
+
+
+
 
 
     def get_pos_graph(self, G, choice):
