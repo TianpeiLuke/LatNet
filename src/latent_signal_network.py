@@ -100,15 +100,35 @@ class latent_signal_network:
 
 
 
-    def graph_from_sparse_adjmat(self, adjMat):
+    def graph_from_sparse_adjmat(self, adjMat, node_range=None, subset_range=None):
         if not isspmatrix(adjMat):
             adjMat = csr_matrix(adjMat)
-        G = nx.from_scipy_sparse_matrix(adjMat) 
-        return G 
+        if node_range is None:
+            G = nx.from_scipy_sparse_matrix(adjMat) 
+            G.remove_nodes_from(nx.isolates(G)) #remove isolates
+        else:
+            G0 = nx.from_scipy_sparse_matrix(adjMat[np.ix_(node_range, node_range)])
+            G0.remove_nodes_from(nx.isolates(G0))
+            G = sorted(nx.connected_component_subgraphs(G0), key = len, reverse=True)[0]
+
+        if subset_range is not None:
+            # Find the largest connected components subgraph 
+            #G1=sorted(nx.connected_component_subgraphs(G.subgraph(subset_range)), key = len, reverse=True)[0]
+            G1 = nx.Graph(G.subgraph(subset_range))
+            #print(len(G1))
+            node_sets = []
+            node_sets.append(set(G1.nodes()))
+            node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+            node_lists = [list(node_sets[0]), list(node_sets[1])]
+
+        if subset_range is None:
+            return G 
+        else:
+            return (G, G1, node_lists, node_sets)
 
 
 
-    def graph_build(self, size, prob, option, node_color=None, write_graph=False, save_fig=False):
+    def graph_build(self, size, prob, option, subset=None,  node_color=None, write_graph=False, save_fig=False):
         '''
             build graph with two random partition. prob = [p_in, p_out], within-cluster edge prob and between-cluster edge prob. 
 
@@ -170,10 +190,26 @@ class latent_signal_network:
             [p_in, p_out] = prob
             G = nx.random_partition_graph(sizes=size, p_in=p_in, p_out=p_out, seed=seed, directed=False)
             pos = nx.nx_pydot.graphviz_layout(G)
-            fig1 = plt.figure(1)
-            if node_color is None:
-                node_color = ['r']*size[0]+['b']*size[1]
+            # choose sub-network
+            if subset is not None:
+                node_subset = [G.nodes()[i] for i in subset]
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+                node_sets = []
+                node_sets.append(set(G1.nodes()))
+                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+                node_lists = [list(node_sets[0]), list(node_sets[1])]
 
+            fig1 = plt.figure(1)
+            if node_color is None and subset is None:
+                node_color = ['r']*size[0]+['b']*size[1]
+            elif subset is not None:
+                node_color = ['r']*len(G)
+                indices = np.argsort(node_lists[0]+node_lists[1])
+                for ii, node in enumerate(G.nodes_iter()):
+                    if ii >= len(G): 
+                        continue
+                    if node in node_lists[1]:
+                        node_color[ii] = 'b'
             nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
@@ -191,9 +227,26 @@ class latent_signal_network:
 
             G=  nx.newman_watts_strogatz_graph(size, k=k, p=prob, seed=seed)
             pos = nx.circular_layout(G, dim=2, scale=1.0, center=None)
+            if subset is not None:
+                node_subset = [G.nodes()[i] for i in subset]
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+                node_sets = []
+                node_sets.append(set(G1.nodes()))
+                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+                node_lists = [list(node_sets[0]), list(node_sets[1])]
+
             fig1 = plt.figure(1)
-            if node_color is None:
+            if node_color is None and subset is None:
                 node_color = ['r']*size
+            elif subset is not None:
+                node_color = ['r']*len(G)
+                indices = np.argsort(node_lists[0]+node_lists[1])
+                for ii, node in enumerate(G.nodes_iter()):
+                    if ii >= len(G): 
+                        continue
+                    if node in node_lists[1]:
+                        node_color[ii] = 'b'
+
             nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
@@ -211,9 +264,24 @@ class latent_signal_network:
             if type(size) == list:
                 size = sum(size)
             pos = nx.nx_pydot.graphviz_layout(G)
+            if subset is not None:
+                node_subset = [G.nodes()[i] for i in subset]
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+                node_sets = []
+                node_sets.append(set(G1.nodes()))
+                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+                node_lists = [list(node_sets[0]), list(node_sets[1])]
             fig1 = plt.figure(1)
-            if node_color is None:
+            if node_color is None and subset is None:
                 node_color = ['r']*size
+            elif subset is not None:
+                node_color = ['r']*len(G)
+                indices = np.argsort(node_lists[0]+node_lists[1])
+                for ii, node in enumerate(G.nodes_iter()):
+                    if ii >= len(G): 
+                        continue
+                    if node in node_lists[1]:
+                        node_color[ii] = 'b'
             nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
@@ -222,8 +290,25 @@ class latent_signal_network:
         elif option['model'] == 'power':
             G = nx.powerlaw_cluster_graph(n=size[0], m=size[1], p=prob, seed=seed)
             pos = nx.nx_pydot.graphviz_layout(G)
+            if subset is not None:
+                node_subset = [G.nodes()[i] for i in subset]
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+                node_sets = []
+                node_sets.append(set(G1.nodes()))
+                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+                node_lists = [list(node_sets[0]), list(node_sets[1])]
             fig1 = plt.figure(1)
-            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=['r']*size, font_color='w')
+            if node_color is None and subset is None:
+                node_color = ['r']*size
+            elif subset is not None:
+                node_color = ['r']*len(G)
+                indices = np.argsort(node_lists[0]+node_lists[1])
+                for ii, node in enumerate(G.nodes_iter()):
+                    if ii >= len(G): 
+                        continue
+                    if node in node_lists[1]:
+                        node_color[ii] = 'b'
+            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
                 fig1.savefig(filename, format="eps")
@@ -234,10 +319,26 @@ class latent_signal_network:
                 size = [size, size]
             G = nx.grid_2d_graph(m=size[0], n=size[1])
             pos = dict(zip(G.nodes(), [np.asarray(u) for u in G.nodes()]))
+            if subset is not None:
+                node_subset = [G.nodes()[i] for i in subset]
+                print(node_subset)
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+                node_sets = []
+                node_sets.append(set(G1.nodes()))
+                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+                node_lists = [list(node_sets[0]), list(node_sets[1])]
             fig1 = plt.figure(1)
-            if node_color is None:
+            if node_color is None and subset is None:
                 node_color = ['r']*sum(size)
-            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
+            elif subset is not None:
+                node_color = ['r']*len(G)
+                indices = np.argsort(node_lists[0]+node_lists[1])
+                for ii, node in enumerate(G.nodes_iter()):
+                    if ii >= len(G): 
+                        continue
+                    if node in node_lists[1]:
+                        node_color[ii] = 'b'
+            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='k')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
                 fig1.savefig(filename, format="eps")
@@ -250,9 +351,24 @@ class latent_signal_network:
             tries = 10000
             G = nx.random_powerlaw_tree(n=size, gamma=gamma, seed=seed, tries=tries)
             pos = nx.circular_layout(G, dim=2, scale=1.0, center=None) #nx.shell_layout(G)#nx.spring_layout(G) #nx.nx_pydot.graphviz_layout(G)
+            if subset is not None:
+                node_subset = [G.nodes()[i] for i in subset]
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+                node_sets = []
+                node_sets.append(set(G1.nodes()))
+                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+                node_lists = [list(node_sets[0]), list(node_sets[1])]
             fig1 = plt.figure(1)
-            if node_color is None:
+            if node_color is None and subset is None:
                 node_color = ['r']*size
+            elif subset is not None:
+                node_color = ['r']*len(G)
+                indices = np.argsort(node_lists[0]+node_lists[1])
+                for ii, node in enumerate(G.nodes_iter()):
+                    if ii >= len(G): 
+                        continue
+                    if node in node_lists[1]:
+                        node_color[ii] = 'b'
             nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
@@ -269,9 +385,24 @@ class latent_signal_network:
                 h = 3
             G = nx.balanced_tree(r=r, h=h, create_using=nx.Graph())
             pos = nx.nx_pydot.graphviz_layout(G)
+            if subset is not None:
+                node_subset = [G.nodes()[i] for i in subset]
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+                node_sets = []
+                node_sets.append(set(G1.nodes()))
+                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+                node_lists = [list(node_sets[0]), list(node_sets[1])]
             fig1 = plt.figure(1)
-            if node_color is None:
-                node_color = ['r']*len(pos)
+            if node_color is None and subset is None:
+                node_color = ['r']*len(G)
+            elif subset is not None:
+                node_color = ['r']*len(G)
+                indices = np.argsort(node_lists[0]+node_lists[1])
+                for ii, node in enumerate(G.nodes_iter()):
+                    if ii >= len(G): 
+                        continue
+                    if node in node_lists[1]:
+                        node_color[ii] = 'b'
             nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=node_color, font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
@@ -282,13 +413,30 @@ class latent_signal_network:
             if type(size) == int:
                 size = [10, 10]
             G = nx.algorithms.bipartite.random_graph(size[0], size[1], prob, seed=seed, directed=False)
-            node_sets = nx.algorithms.bipartite.sets(G)
+            if subset is None:
+                node_sets = nx.algorithms.bipartite.sets(G)
+                G1 = nx.subgraph(node_sets[0])
+            else:
+                node_subset = [G.nodes()[i] for i in subset]
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+                node_sets = []
+                node_sets.append(set(G1.nodes()))
+                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+            node_lists = [list(node_sets[0]), list(node_sets[1])]
             pos = nx.nx_pydot.graphviz_layout(G, prog='dot')
             if not nx.is_connected(G): #must be connected
                 raise ValueError("Not connected. Please increase the edge probability.")
             fig1 = plt.figure(1)
-            if node_color is None:
+            if node_color is None and subset is None:
                 node_color = ['r']*size[0]+['b']*size[1]
+            elif subset is not None:
+                node_color = ['r']*len(G)
+                indices = np.argsort(node_lists[0]+node_lists[1])
+                for ii, node in enumerate(G.nodes_iter()):
+                    if ii >= len(G): 
+                        continue
+                    if node in node_lists[1]:
+                        node_color[ii] = 'b'
             nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=node_color, font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
@@ -309,13 +457,30 @@ class latent_signal_network:
                 num_edges = size[0]*size[1]
 
             G = nx.algorithms.bipartite.gnmk_random_graph(size[0], size[1], num_edges, seed=seed, directed=False)
-            node_sets = nx.algorithms.bipartite.sets(G)
+            if subset is None:
+                node_sets = nx.algorithms.bipartite.sets(G)
+                G1 = nx.subgraph(node_sets[0])
+            else:
+                node_subset = [G.nodes()[i] for i in subset]
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+                node_sets = []
+                node_sets.append(set(G1.nodes()))
+                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+            node_lists = [list(node_sets[0]), list(node_sets[1])]
             pos = nx.nx_pydot.graphviz_layout(G, prog='dot')
             if not nx.is_connected(G): #must be connected
                 raise ValueError("Not connected. Please increase the edge probability.")
             fig1 = plt.figure(1)
-            if node_color is None:
+            if node_color is None and subset is None:
                 node_color = ['r']*size[0]+['b']*size[1]
+            elif subset is not None:
+                node_color = ['r']*len(G)
+                indices = np.argsort(node_lists[0]+node_lists[1])
+                for ii, node in enumerate(G.nodes_iter()):
+                    if ii >= len(G): 
+                        continue
+                    if node in node_lists[1]:
+                        node_color[ii] = 'b'
             nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=node_color, font_color='w')
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
@@ -331,11 +496,25 @@ class latent_signal_network:
         for u, v, e in G_out.edges(data=True):
             e['weight'] = 1
 
+        if subset is not None:
+            G1_out = nx.Graph()
+             # node initialization 
+            G1_out.add_nodes_from(G1.nodes(), attributes=np.zeros((node_dim,)).T)
+            G1_out.add_edges_from(G1.edges())
+            # assign weight values 
+            for u, v, e in G1_out.edges(data=True):
+                e['weight'] = 1
+
+
         if write_graph:
             self.G = G_out
+            if subset is not None:
+                self.G1= G1_out
             self.option = option.copy()
-
-        return G_out
+        if subset is None:
+            return G_out
+        else: 
+            return (G_out, G1_out, node_lists, node_sets)
 
 
 
@@ -548,9 +727,9 @@ class latent_signal_network:
             
 
         n = len(G)
-        dim = len(G.node[G.nodes()[0]]['attributes'])
+        dim = X0.shape[1]#len(G.node[G.nodes()[0]]['attributes'])
 
-        if X0.shape[0] != n or X0.shape[1] != dim:
+        if X0.shape[0] != n: #or X0.shape[1] != dim:
             X0 = np.random.randn(n, dim)
         
         if option['method'] == 'l0_threshold':
@@ -774,7 +953,7 @@ class latent_signal_network:
 
 
 
-    def draw(self, G, option, pos=None, pos_init=None, fontsize=8, font_color = 'k', node_size = 8, save_fig = False):
+    def draw(self, G, option, node_lists=None, pos=None, pos_init=None, with_labels=False, fontsize=8, font_color = 'k', node_size = 250, save_fig = False):
         seed = option['seed']
         node_dim = option['node_dim']
         try:
@@ -782,8 +961,17 @@ class latent_signal_network:
         except KeyError:
             node_color = ['r']*len(G)
 
-        if len(node_color) != len(G):
+        if node_lists is None:
             node_color = ['r']*len(G)
+        else:
+            node_color = ['r']*len(G)
+            indices = np.argsort(node_lists[0]+node_lists[1])
+            for ii, node in enumerate(G.nodes_iter()):
+                if ii >= len(G): 
+                    print("here") 
+                    continue
+                if node in node_lists[1]:
+                    node_color[ii] = 'b'
 
         try:
             scale = option['draw_scale']
@@ -865,7 +1053,7 @@ class latent_signal_network:
                 pos = nx.spring_layout(G, pos=pos_init, scale=scale, iterations=100) #nx.nx_pydot.graphviz_layout(G)
 
             fig1 = plt.figure(1)
-            nx.draw(G, pos=pos, fontsize=fontsize, node_color=node_color, font_color=font_color, node_size=node_size)
+            nx.draw(G, pos=pos, with_labels=with_labels, fontsize=fontsize, node_color=node_color, font_color=font_color, node_size=node_size)
             filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
             if save_fig == True:
                 fig1.savefig(filename, format="eps")
