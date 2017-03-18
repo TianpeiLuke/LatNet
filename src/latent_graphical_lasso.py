@@ -265,7 +265,8 @@ def latent_variable_gmm_admm(X_o, alpha=1, gamma=1,  mu=10, S_init=None, max_ite
 
 #============================================================================
 
-def latent_variable_glasso_data(X_o, X_h=None,  alpha=0.1, mask=None, S_init=None, max_iter_out=100, Theta_h=None,  verbose=False, threshold=1e-1, return_hists=False):
+def latent_variable_glasso_data(X_o, X_h=None,  alpha=0.1, mask=None, S_init=None, \
+   max_iter_out=100, Theta_h=None,  verbose=False, threshold=1e-1, return_hists=False):
     '''
        A EM algorithm implementation of the Latent Variable Gaussian Graphical Model 
       
