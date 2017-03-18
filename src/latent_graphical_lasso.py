@@ -79,7 +79,7 @@ def hard_threshold(seq, tau):
     seq_copy[sortind[tau:]] = 0
     return seq_copy
 
-def prox_R_lvgmm_admm(emp_cov, Z, xi=1):
+def _prox_R_lvgmm_admm(emp_cov, Z, xi=1):
     '''
       solve for the proximal minimization
          min_R  0.5*||R-Z||**2/xi + trace(R, empcov) - logdet(R)
@@ -94,7 +94,7 @@ def prox_R_lvgmm_admm(emp_cov, Z, xi=1):
     return np.dot(transformed_eigvals*eigvecs, eigvecs.T)
 
 
-def prox_S_lvgmm_admm(Z, alpha=1, xi=1):
+def _prox_S_lvgmm_admm(Z, alpha=1, xi=1):
     '''
       solve for the proximal minimization
          min_R  0.5*||S-Z||**2/xi + alpha||S||_1
@@ -103,7 +103,7 @@ def prox_S_lvgmm_admm(Z, alpha=1, xi=1):
     import pywt
     return pywt.threshold(Z, alpha*xi, 'soft')
 
-def prox_L_lvgmm_admm(Z, gamma=1, xi=1):
+def _prox_L_lvgmm_admm(Z, gamma=1, xi=1):
     '''
       solve for the proximal minimization
          min_R  0.5*||L-Z||**2/xi + gamma||S||_1
@@ -112,12 +112,11 @@ def prox_L_lvgmm_admm(Z, gamma=1, xi=1):
     eigvals, eigvecs = np.linalg.eigh(Z)
     def eig_transform(eig, gamma, xi):
         return np.maximum(eig-xi*gamma, 0)
-    #vec_eig_transform = np.vectorize(eig_transform)
     transformed_eigvals = eig_transform(eigvals, gamma, xi)
     return np.dot(transformed_eigvals*eigvecs, eigvecs.T)
 
 
-def latent_variable_gmm_admm(X_o, alpha=1, gamma=1,  mu=10, S_init=None, max_iter=1000, threshold=1e-3, verbose=False, return_hists=False):
+def latent_variable_gmm_admm(X_o, alpha=1, gamma=1,  mu=10, S_init=None, max_iter=1000, threshold=1e-3, verbose=False, return_costs=False):
     '''
           An implementation of  the Latent Variable Gaussian Graphical Model via alteranting direction of multipliers method (ADMM)
       
@@ -164,7 +163,6 @@ def latent_variable_gmm_admm(X_o, alpha=1, gamma=1,  mu=10, S_init=None, max_ite
         else:
             return emp_cov, np.linalg.pinv(emp_cov)
 
-    costs = list()
     if S_init is None:
         covariance_o = emp_cov.copy()
     else:
@@ -182,18 +180,6 @@ def latent_variable_gmm_admm(X_o, alpha=1, gamma=1,  mu=10, S_init=None, max_ite
     
     # initialization 
     precision_o_init = np.linalg.pinv(covariance_o)
-    #S = hard_threshold(precision_o_init.reshape((precision_o_init.size,)), tau_s).reshape((n,n))
-    
-    #diff_pd = precision_o_init - S
-    #eigval, eigvec = np.linalg.eigh(diff_pd)
-    #eigvec = np.asarray(eigvec)
-    #index_sig = np.argsort(eigval)[::-1]
-    #eigval = eigval[index_sig]
-    #eigvec = eigvec[:,index_sig]
-    #k_neg = np.where(eigval < 0)
-    #print("rank of diff: %d" % (k_neg))
-    #k  = min(k_l, k_neg)
-    #Z = np.sqrt(eigval[:k])*eigvec[:,:k] #right multiplication
     R = np.zeros((n,n))
     S = np.zeros((n,n))
     L = np.zeros((n,n))
@@ -218,12 +204,11 @@ def latent_variable_gmm_admm(X_o, alpha=1, gamma=1,  mu=10, S_init=None, max_ite
     k_neg = np.where(eigval < 0)[0][0]
     if verbose: print("rank of initial L: %d" % (k_neg))
     L = np.dot(eigval[:k_neg]*eigvec[:,:k_neg], eigvec[:,:k_neg].T )#right multiplication
-    #k  = min(k_l, k_neg)
     mu0 = mu    
 
-    cost_hists = list([])
-    diff_pre_hists = list([])
-    constraint_loss_hists = list([])
+    cost_hists = list()
+    diff_pre_hists = list()
+    constraint_loss_hists = list()
 
     for t in range(max_iter):
         R_pre = R
@@ -234,9 +219,9 @@ def latent_variable_gmm_admm(X_o, alpha=1, gamma=1,  mu=10, S_init=None, max_ite
         W_S = S + mu*Lambda_S
         W_L = L + mu*Lambda_L
         # proximal projection 
-        R = prox_R_lvgmm_admm(covariance_o, W_R, mu)
-        S = prox_S_lvgmm_admm(W_S, alpha,  mu)
-        L = prox_L_lvgmm_admm(W_L, gamma,  mu)
+        R = _prox_R_lvgmm_admm(covariance_o, W_R, mu)
+        S = _prox_S_lvgmm_admm(W_S, alpha,  mu)
+        L = _prox_L_lvgmm_admm(W_L, gamma,  mu)
         
         # concensus modification
         T_R = R - mu*Lambda_R
@@ -255,7 +240,7 @@ def latent_variable_gmm_admm(X_o, alpha=1, gamma=1,  mu=10, S_init=None, max_ite
 
         constraint_loss = np.linalg.norm(R- S + L)
         cost = -2. * log_likelihood(covariance_o, R) + m * np.log(2* np.pi) + alpha*(np.abs(S).sum() - np.abs(np.diag(S)).sum()) + gamma * np.trace(L)
-        if return_hists:
+        if return_costs:
             cost_hists.append(cost)
             constraint_loss_hists.append(constraint_loss)
             diff_pre_hists.append(diff_pre)
@@ -267,9 +252,10 @@ def latent_variable_gmm_admm(X_o, alpha=1, gamma=1,  mu=10, S_init=None, max_ite
             print("    %d     |  %.4f |  %.4f     |      %.4f       |" \
                        % (t, cost, diff_pre, constraint_loss))
         if diff_pre/3 < threshold and constraint_loss < threshold:
+            print("optimal solution found.")
             break
 
-    if return_hists:
+    if return_costs:
         return (R, S, L, cost_hists, constraint_loss_hists, diff_pre_hists)
     else:
         return (R, S, L)
@@ -279,7 +265,7 @@ def latent_variable_gmm_admm(X_o, alpha=1, gamma=1,  mu=10, S_init=None, max_ite
 
 #============================================================================
 
-def latent_variable_glasso_data(X_o, X_h=None,  alpha=0.1, mask=None, S_init=None, max_iter_out=100, verbose=False, threshold=1e-1, return_hists=False):
+def latent_variable_glasso_data(X_o, X_h=None,  alpha=0.1, mask=None, S_init=None, max_iter_out=100, Theta_h=None,  verbose=False, threshold=1e-1, return_hists=False):
     '''
        A EM algorithm implementation of the Latent Variable Gaussian Graphical Model 
       
@@ -374,6 +360,14 @@ def latent_variable_glasso_data(X_o, X_h=None,  alpha=0.1, mask=None, S_init=Non
         if np.linalg.norm(mask-mask.T) > 1e-3:
             raise ValueError("mask must be symmetric.")
         
+    if Theta_h is None:
+        Theta_h = np.eye(h_dim)
+        Theta_h_inv = np.eye(h_dim)
+    else:
+        eigval_h, eigvec_h = np.linalg.eigh(Theta_h)
+        eigval_h_transformed = np.maximum(eigval_h, 0)
+        Theta_h = np.dot(eigval_h_transformed*eigvec_h, eigvec_h.T)
+        Theta_h_inv = np.dot((1/eigval_h_transformed)*eigvec_h, eigvec_h.T)
 
     # EM-loop
     from tqdm import tqdm
@@ -387,8 +381,8 @@ def latent_variable_glasso_data(X_o, X_h=None,  alpha=0.1, mask=None, S_init=Non
         prec_all_list.append(precision_all)
         precision_oh = precision_all[np.ix_(subblock1_index, subblock2_index)]
         # E-step: find the expectation of covariance over (o, h)
-        covariance_oh = -np.dot(covariance_o, precision_oh)
-        covariance_hh = np.eye(h_dim) - np.dot(precision_oh.T, covariance_oh)  
+        covariance_oh = -np.dot(np.dot(covariance_o, precision_oh), Theta_h_inv)
+        covariance_hh = Theta_h_inv - np.dot(precision_oh.T, covariance_oh)  
  
         covariance_all[np.ix_(subblock1_index, subblock1_index)] = covariance_o
         covariance_all[np.ix_(subblock1_index, subblock2_index)] = covariance_oh
