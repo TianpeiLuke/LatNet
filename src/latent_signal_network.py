@@ -15,6 +15,29 @@ from sklearn.preprocessing import normalize
 from sklearn.metrics import precision_recall_curve, average_precision_score, auc
 
 
+
+def edge_list_convert(Laplacian):
+    n = Laplacian.shape[0]
+    edge_list_string = []
+    for i in range(n):
+        base_idx = np.arange(i+1,n)
+        row = np.squeeze(np.asarray(Laplacian[np.ix_([i],base_idx)]))
+        idx_nonzero = np.nonzero(row)[0]
+        #print(idx_nonzero)
+        edge_list_string = edge_list_string+["(%d,%d)"%(i, base_idx[x]) for x in idx_nonzero]
+    return edge_list_string
+
+def jaccard_sim(edge_list_g1, edge_list_g2):
+    edge_set_g1 = set(edge_list_g1)
+    edge_set_g2 = set(edge_list_g2)
+    return len(edge_set_g1.intersection(edge_set_g2))/len(edge_set_g1.union(edge_set_g2))
+
+def jaccard_dis(edge_list_g1, edge_list_g2):
+    edge_set_g1 = set(edge_list_g1)
+    edge_set_g2 = set(edge_list_g2)
+    return 1- len(edge_set_g1.intersection(edge_set_g2))/len(edge_set_g1.union(edge_set_g2))
+
+
 def graph_diff(Laplacian, Laplacian_est):
     if np.linalg.norm(Laplacian_est-Laplacian_est.T, 'fro') > 1e-5:
         raise ValueError("Laplacian_estimate must be symmetric")
