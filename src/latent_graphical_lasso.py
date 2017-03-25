@@ -252,7 +252,7 @@ def latent_variable_gmm_admm(X_o, alpha=1, gamma=1,  mu=10, S_init=None, max_ite
             print("    %d     |  %.4f |  %.4f     |      %.4f       |" \
                        % (t, cost, diff_pre, constraint_loss))
         if diff_pre/3 < threshold and constraint_loss < threshold:
-            print("optimal solution found.")
+            if verbose: print("optimal solution found.")
             break
 
     if return_costs:
