@@ -222,6 +222,25 @@ class latent_signal_network:
                           must import nx.algorithm.bipartite
                           should be a connected graph
                   
+                  ='balanced_tree_add', a balanced tree with r branches and h depth and then add edges from latent vertices to a subset 
+                          option['r'] = branches for each node
+                          option['h'] = depth of the tree
+                          option['add_edges_how']  #how to add edges
+                                = "concentrate"  for each latent vertex, connects it with all other non-neighboring vertices in option['add_edges_to'] with fixed prob
+                                = "uniform"      for each latent vertex, connects it with any other non-neighboring vertices in option['add_edges_to'] with i.i.d. prob
+                          option['add_edges_to']  #the subset where to add edges
+                                = "latent"  only add edges between two latent vertices
+                                = "boundary" only add edges between latent and boundary vertices
+                                = "observed" add edges between any latent and any observed vertices
+
+                  ='balanced_tree_add_fixed', a balanced tree with r branches and h depth and then add fixed number of edges from latent vertices to a subset 
+                          option['r'] = branches for each node
+                          option['h'] = depth of the tree
+                          option['add_edges_num'] = number of edges added for each latent vertices to a subset in option['add_edges_to']
+                          option['add_edges_to']  #the subset where to add edges
+                                = "latent"  only add edges between two latent vertices
+                                = "boundary" only add edges between latent and boundary vertices
+                                = "observed" add edges between any latent and any observed vertices
  
          option['seed'] for random seed 
          option['node_dim'] for the dimension of node attributes
@@ -229,519 +248,89 @@ class latent_signal_network:
         seed = option['seed']
         node_dim = option['node_dim']
         #===========================================================================
-        if option['model'] == 'partition': 
-            if len(prob) < 2:
-                p_in = prob
-                p_out = 1 - p_in
-           
-            [p_in, p_out] = prob
-            G = nx.random_partition_graph(sizes=size, p_in=p_in, p_out=p_out, seed=seed, directed=False)
-            pos = nx.nx_pydot.graphviz_layout(G)
-            # choose sub-network
-            if subset is not None:
-                node_subset = [G.nodes()[i] for i in subset]
-                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
-                node_sets = []
-                node_sets.append(set(G1.nodes()))
-                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
-                node_lists = [list(node_sets[0]), list(node_sets[1])]
-
-            fig1 = plt.figure(1)
-            if node_color is None and subset is None:
-                node_color = ['r']*size[0]+['b']*size[1]
-            elif subset is not None:
-                node_color = ['r']*len(G)
-                indices = np.argsort(node_lists[0]+node_lists[1])
-                for ii, node in enumerate(G.nodes_iter()):
-                    if ii >= len(G): 
-                        continue
-                    if node in node_lists[1]:
-                        node_color[ii] = 'b'
-            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
-            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
-            if save_fig == True:
-                fig1.savefig(filename, format="eps")
-             
+        if option['model'] == 'partition':
+            if subset is not None: 
+                G, G1, pos, node_lists, node_sets = self._graph_build_partition(size, prob, option, subset,  node_color, save_fig)
+            else:
+                G, pos = self._graph_build_partition(size, prob, option, subset,  node_color, save_fig)
 
         elif option['model'] == 'newman':
-            try:
-                k = option['k-NN']
-            except KeyError:
-                k = 2
-
-            if type(size) == list:
-                size = sum(size)
-
-            G=  nx.newman_watts_strogatz_graph(size, k=k, p=prob, seed=seed)
-            pos = nx.circular_layout(G, dim=2, scale=1.0, center=None)
             if subset is not None:
-                node_subset = [G.nodes()[i] for i in subset]
-                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
-                node_sets = []
-                node_sets.append(set(G1.nodes()))
-                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
-                node_lists = [list(node_sets[0]), list(node_sets[1])]
-
-            fig1 = plt.figure(1)
-            if node_color is None and subset is None:
-                node_color = ['r']*size
-            elif subset is not None:
-                node_color = ['r']*len(G)
-                indices = np.argsort(node_lists[0]+node_lists[1])
-                for ii, node in enumerate(G.nodes_iter()):
-                    if ii >= len(G): 
-                        continue
-                    if node in node_lists[1]:
-                        node_color[ii] = 'b'
-
-            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
-            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
-            if save_fig == True:
-                fig1.savefig(filename, format="eps")
+                G, G1, pos, node_lists, node_sets = self._graph_build_newman(size, prob, option, subset, node_color, save_fig)
+            else:
+                G, pos = self._graph_build_newman(size, prob, option, subset, node_color, save_fig)
 
         elif option['model'] == 'binomial':
-            if prob <= 0.2:
-                G = nx.fast_gnp_random_graph(size, prob, seed=seed)
-            else:
-                G = nx.gnp_random_graph(size, prob, seed=seed)  
-         
-            if not nx.is_connected(G): #must be connected
-                raise ValueError("Not connected. Please increase the edge probability.")
-
-            if type(size) == list:
-                size = sum(size)
-            pos = nx.nx_pydot.graphviz_layout(G)
             if subset is not None:
-                node_subset = [G.nodes()[i] for i in subset]
-                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
-                node_sets = []
-                node_sets.append(set(G1.nodes()))
-                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
-                node_lists = [list(node_sets[0]), list(node_sets[1])]
-            fig1 = plt.figure(1)
-            if node_color is None and subset is None:
-                node_color = ['r']*size
-            elif subset is not None:
-                node_color = ['r']*len(G)
-                indices = np.argsort(node_lists[0]+node_lists[1])
-                for ii, node in enumerate(G.nodes_iter()):
-                    if ii >= len(G): 
-                        continue
-                    if node in node_lists[1]:
-                        node_color[ii] = 'b'
-            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
-            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
-            if save_fig == True:
-                fig1.savefig(filename, format="eps")
+                G, G1, pos, node_lists, node_sets = self._graph_build_binomial(size, prob, option, subset, node_color, save_fig)
+            else:
+                G, pos = self._graph_build_binomial(size, prob, option, subset, node_color, save_fig)
 
         elif option['model'] == 'power':
-            G = nx.powerlaw_cluster_graph(n=size[0], m=size[1], p=prob, seed=seed)
-            pos = nx.nx_pydot.graphviz_layout(G)
             if subset is not None:
-                node_subset = [G.nodes()[i] for i in subset]
-                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
-                node_sets = []
-                node_sets.append(set(G1.nodes()))
-                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
-                node_lists = [list(node_sets[0]), list(node_sets[1])]
-            fig1 = plt.figure(1)
-            if node_color is None and subset is None:
-                node_color = ['r']*size
-            elif subset is not None:
-                node_color = ['r']*len(G)
-                indices = np.argsort(node_lists[0]+node_lists[1])
-                for ii, node in enumerate(G.nodes_iter()):
-                    if ii >= len(G): 
-                        continue
-                    if node in node_lists[1]:
-                        node_color[ii] = 'b'
-            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
-            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
-            if save_fig == True:
-                fig1.savefig(filename, format="eps")
-
+                G, G1, pos, node_lists, node_sets = self._graph_build_power(size, prob, option, subset, node_color, save_fig)
+            else:
+                G, pos = self._graph_build_power(size, prob, option, subset, node_color, save_fig)
 
         elif option['model'] == 'grid':
-            if type(size) == int:
-                size = [size, size]
-            G = nx.grid_2d_graph(m=size[0], n=size[1])
-            pos = dict(zip(G.nodes(), [np.asarray(u) for u in G.nodes()]))
             if subset is not None:
-                node_subset = [G.nodes()[i] for i in subset]
-                print(node_subset)
-                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
-                node_sets = []
-                node_sets.append(set(G1.nodes()))
-                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
-                node_lists = [list(node_sets[0]), list(node_sets[1])]
-            fig1 = plt.figure(1)
-            if node_color is None and subset is None:
-                node_color = ['r']*sum(size)
-            elif subset is not None:
-                node_color = ['r']*len(G)
-                indices = np.argsort(node_lists[0]+node_lists[1])
-                for ii, node in enumerate(G.nodes_iter()):
-                    if ii >= len(G): 
-                        continue
-                    if node in node_lists[1]:
-                        node_color[ii] = 'b'
-            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='k')
-            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
-            if save_fig == True:
-                fig1.savefig(filename, format="eps")
+                G, G1, pos, node_lists, node_sets = self._graph_build_grid(size, prob, option, subset, node_color, save_fig)
+            else:
+                G, pos = self._graph_build_grid(size, prob, option, subset, node_color, save_fig)
         
         elif option['model'] == 'tree':
-            try:
-                gamma = option['gamma']
-            except KeyError:
-                gamma = 3
-            tries = 10000
-            G = nx.random_powerlaw_tree(n=size, gamma=gamma, seed=seed, tries=tries)
-            pos = nx.circular_layout(G, dim=2, scale=1.0, center=None) #nx.shell_layout(G)#nx.spring_layout(G) #nx.nx_pydot.graphviz_layout(G)
             if subset is not None:
-                node_subset = [G.nodes()[i] for i in subset]
-                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
-                node_sets = []
-                node_sets.append(set(G1.nodes()))
-                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
-                node_lists = [list(node_sets[0]), list(node_sets[1])]
-            fig1 = plt.figure(1)
-            if node_color is None and subset is None:
-                node_color = ['r']*size
-            elif subset is not None:
-                node_color = ['r']*len(G)
-                indices = np.argsort(node_lists[0]+node_lists[1])
-                for ii, node in enumerate(G.nodes_iter()):
-                    if ii >= len(G): 
-                        continue
-                    if node in node_lists[1]:
-                        node_color[ii] = 'b'
-            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
-            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
-            if save_fig == True:
-                fig1.savefig(filename, format="eps")
+                G, G1, pos, node_lists, node_sets = self._graph_build_tree(size, prob, option, subset, node_color, save_fig)
+            else:
+                G, pos = self._graph_build_tree(size, prob, option, subset, node_color, save_fig)
     
         elif option['model'] == 'balanced_tree':
-            try:
-                r = option['r']
-            except KeyError:
-                r = 2
-            try:
-                h = option['h']
-            except KeyError:
-                h = 3
-            G = nx.balanced_tree(r=r, h=h, create_using=nx.Graph())
-            pos = nx.nx_pydot.graphviz_layout(G)
             if subset is not None:
-                node_subset = [G.nodes()[i] for i in subset]
-                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
-                node_sets = []
-                node_sets.append(set(G1.nodes()))
-                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
-                node_lists = [list(node_sets[0]), list(node_sets[1])]
-            fig1 = plt.figure(1)
-            if node_color is None and subset is None:
-                node_color = ['r']*len(G)
-            elif subset is not None:
-                node_color = ['r']*len(G)
-                indices = np.argsort(node_lists[0]+node_lists[1])
-                for ii, node in enumerate(G.nodes_iter()):
-                    if ii >= len(G): 
-                        continue
-                    if node in node_lists[1]:
-                        node_color[ii] = 'b'
-            nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=node_color, font_color='w')
-            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
-            if save_fig == True:
-                fig1.savefig(filename, format="eps")
-        
-
-
-        elif option['model'] == 'bipartite_binomial':
-            if type(size) == int:
-                size = [10, 10]
-            G = nx.algorithms.bipartite.random_graph(size[0], size[1], prob, seed=seed, directed=False)
-            if subset is None:
-                node_sets = nx.algorithms.bipartite.sets(G)
-                G1 = nx.subgraph(node_sets[0])
+                G, G1, pos, node_lists, node_sets = self._graph_build_balanced_tree(size, prob, option, subset, node_color, save_fig)
             else:
-                node_subset = [G.nodes()[i] for i in subset]
-                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
-                node_sets = []
-                node_sets.append(set(G1.nodes()))
-                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
-            node_lists = [list(node_sets[0]), list(node_sets[1])]
-            pos = nx.nx_pydot.graphviz_layout(G, prog='dot')
-            if not nx.is_connected(G): #must be connected
-                raise ValueError("Not connected. Please increase the edge probability.")
-            fig1 = plt.figure(1)
-            if node_color is None and subset is None:
-                node_color = ['r']*size[0]+['b']*size[1]
-            elif subset is not None:
-                node_color = ['r']*len(G)
-                indices = np.argsort(node_lists[0]+node_lists[1])
-                for ii, node in enumerate(G.nodes_iter()):
-                    if ii >= len(G): 
-                        continue
-                    if node in node_lists[1]:
-                        node_color[ii] = 'b'
-            nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=node_color, font_color='w')
-            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
-            if save_fig == True:
-                fig1.savefig(filename, format="eps")
-
+                G, pos = self._graph_build_balanced_tree(size, prob, option, subset, node_color, save_fig)
+        
+        elif option['model'] == 'bipartite_binomial':
+            if subset is not None:
+                G, G1, pos, node_lists, node_sets = self._graph_build_bipartite_binomial(size, prob, option, subset, node_color, save_fig)
+            else:
+                G, pos = self._graph_build_bipartite_binomial(size, prob, option, subset, node_color, save_fig)
 
         elif option['model'] == 'bipartite_uniform':
-            if type(size) == int:
-                size = [10, 10]
-
-            try:
-                num_edges = option['num_edges']
-            except KeyError:
-                num_edges = size[0]*size[1]
- 
-            if num_edges > size[0]*size[1]:
-                print("too many edges. reduce to " + str(size[0]*size[1]))
-                num_edges = size[0]*size[1]
-
-            G = nx.algorithms.bipartite.gnmk_random_graph(size[0], size[1], num_edges, seed=seed, directed=False)
-            if subset is None:
-                node_sets = nx.algorithms.bipartite.sets(G)
-                G1 = nx.subgraph(node_sets[0])
+            if subset is not None:
+                G, G1, pos, node_lists, node_sets = self._graph_build_bipartite_uniform(size, prob, option, subset, node_color, save_fig)
             else:
-                node_subset = [G.nodes()[i] for i in subset]
-                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
-                node_sets = []
-                node_sets.append(set(G1.nodes()))
-                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
-            node_lists = [list(node_sets[0]), list(node_sets[1])]
-            pos = nx.nx_pydot.graphviz_layout(G, prog='dot')
-            if not nx.is_connected(G): #must be connected
-                raise ValueError("Not connected. Please increase the edge probability.")
-            fig1 = plt.figure(1)
-            if node_color is None and subset is None:
-                node_color = ['r']*size[0]+['b']*size[1]
-            elif subset is not None:
-                node_color = ['r']*len(G)
-                indices = np.argsort(node_lists[0]+node_lists[1])
-                for ii, node in enumerate(G.nodes_iter()):
-                    if ii >= len(G): 
-                        continue
-                    if node in node_lists[1]:
-                        node_color[ii] = 'b'
-            nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=node_color, font_color='w')
-            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
-            if save_fig == True:
-                fig1.savefig(filename, format="eps")
+                G, pos = self._graph_build_bipartite_uniform(size, prob, option, subset, node_color, save_fig)
 
-        elif option['model'] == 'balanced_tree_loop':
-            try:
-                r = option['r']
-            except KeyError:
-                r = 2
-            try:
-                h = option['h']
-            except KeyError:
-                h = 3
-            try:
-                choice_add_edges_how = option['add_edges_how']  #where to add edges
-            except KeyError:
-                choice_add_edges_how = 'uniform'
-
-            try:
-                choice_add_edges_to = option['add_edges_to']  #how to add edges
-            except KeyError:
-                choice_add_edges_to = 'latent'
-
-
-            G = nx.balanced_tree(r=r, h=h, create_using=nx.Graph())
-            pos = nx.nx_pydot.graphviz_layout(G)
+        elif option['model'] == 'balanced_tree_add':
             if subset is not None:
-                node_subset = [G.nodes()[i] for i in subset]
-                latent_vertices = list(set(G.nodes()).difference(node_subset))
-                np.random.seed(seed)
-                dices = np.random.rand(len(G), len(G))
-                for i, v in enumerate(latent_vertices):
-                    neighbors = G[v]
-                    latent_not_neighbors = [s for s in latent_vertices if s not in neighbors]
-                    observed_not_neighbors = [s for s in node_subset if s not in neighbors]
-                    if choice_add_edges_to == 'observed':
-                        for j, u in enumerate(observed_not_neighbors):
-                            if choice_add_edges_how == 'uniform':
-                                if dices[i][j] < prob:
-                                    G.add_edge(v,u)
-                                    G.add_edge(u,v)
-                            elif choice_add_edges_how == 'concentrate':
-                                if dices[i][0] < prob:
-                                    G.add_edge(v,u)
-                                    G.add_edge(u,v)
-                    elif choice_add_edges_to == 'latent':
-                        for j, u in enumerate(latent_not_neighbors):
-                            if choice_add_edges_how == 'uniform':
-                                if dices[i][j] < prob:
-                                    G.add_edge(v,u)
-                                    G.add_edge(u,v)
-                            elif choice_add_edges_how == 'concentrate':
-                                if dices[i][0] < prob:
-                                    G.add_edge(v,u)
-                                    G.add_edge(u,v)
-                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
-                node_sets = []
-                node_sets.append(set(G1.nodes()))
-                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
-                node_lists = [list(node_sets[0]), list(node_sets[1])]
-            fig1 = plt.figure(1)
-            if node_color is None and subset is None:
-                node_color = ['r']*len(G)
-            elif subset is not None:
-                node_color = ['r']*len(G)
-                indices = np.argsort(node_lists[0]+node_lists[1])
-                for ii, node in enumerate(G.nodes_iter()):
-                    if ii >= len(G): 
-                        continue
-                    if node in node_lists[1]:
-                        node_color[ii] = 'b'
-            nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=node_color, font_color='w')
-            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
-            if save_fig == True:
-                fig1.savefig(filename, format="eps")
-
-        elif option['model'] == 'binomial_loop':
-            if prob <= 0.2:
-                G = nx.fast_gnp_random_graph(size, prob, seed=seed)
+                G, G1, pos, node_lists, node_sets = self._graph_build_balanced_tree_add_edges(size, prob, option, subset, node_color, save_fig)
             else:
-                G = nx.gnp_random_graph(size, prob, seed=seed)  
-         
-            if not nx.is_connected(G): #must be connected
-                raise ValueError("Not connected. Please increase the edge probability.")
-            try:
-                choice_add_edges_how = option['add_edges_how']   #how to add edges
-            except KeyError:
-                choice_add_edges_how = 'uniform'
-            try:
-                choice_add_edges_to = option['add_edges_to']   #where to add edges
-            except KeyError:
-                choice_add_edges_to = 'latent'
+                G, pos = self._graph_build_balanced_tree_add_edges(size, prob, option, subset, node_color, save_fig)
 
-            if type(size) == list:
-                size = sum(size)
-            pos = nx.nx_pydot.graphviz_layout(G)
+        elif option['model'] == 'binomial_add':
             if subset is not None:
-                prob2 = option['latent_edges_prob']
+                G, G1, pos, node_lists, node_sets = self._graph_build_binomial_add_edges(size, prob, option, subset, node_color, save_fig)
+            else:
+                G, pos = self._graph_build_binomial_add_edges(size, prob, option, subset, node_color, save_fig)
 
-                node_subset = [G.nodes()[i] for i in subset]
-                latent_vertices = list(set(G.nodes()).difference(node_subset))
-                np.random.seed(seed)
-                dices = np.random.rand(len(G), len(G))
-                for i, v in enumerate(latent_vertices):
-                    neighbors = G[v]
-                    latent_not_neighbors = [s for s in latent_vertices if s not in neighbors]
-                    observed_not_neighbors = [s for s in node_subset if s not in neighbors]
-                    if choice_add_edges_to == 'observed':
-                        for j, u in enumerate(observed_not_neighbors):
-                            if choice_add_edges_how == 'uniform':
-                                if dices[i][j] < prob:
-                                    G.add_edge(v,u)
-                                    G.add_edge(u,v)
-                            elif choice_add_edges_how == 'concentrate':
-                                if dices[i][0] < prob:
-                                    G.add_edge(v,u)
-                                    G.add_edge(u,v)
-                    elif choice_add_edges_to == 'latent':
-                        for j, u in enumerate(latent_not_neighbors):
-                            if choice_add_edges_how == 'uniform':
-                                if dices[i][j] < prob:
-                                    G.add_edge(v,u)
-                                    G.add_edge(u,v)
-                            elif choice_add_edges_how == 'concentrate':
-                                if dices[i][0] < prob:
-                                    G.add_edge(v,u)
-                                    G.add_edge(u,v)
-                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
-                node_sets = []
-                node_sets.append(set(G1.nodes()))
-                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
-                node_lists = [list(node_sets[0]), list(node_sets[1])]
-            fig1 = plt.figure(1)
-            if node_color is None and subset is None:
-                node_color = ['r']*size
-            elif subset is not None:
-                node_color = ['r']*len(G)
-                indices = np.argsort(node_lists[0]+node_lists[1])
-                for ii, node in enumerate(G.nodes_iter()):
-                    if ii >= len(G): 
-                        continue
-                    if node in node_lists[1]:
-                        node_color[ii] = 'b'
-            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
-            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
-            if save_fig == True:
-                fig1.savefig(filename, format="eps")
-
-        elif option['model'] == 'grid_loop':
-            try:
-                choice_add_edges_how = option['add_edges_how'] # how to add edges
-            except KeyError:
-                choice_add_edges_how = 'uniform'
-            try:
-                choice_add_edges_to = option['add_edges_to']  #where to add edges
-            except KeyError:
-                choice_add_edges_to = 'latent'
-
-            if type(size) == int:
-                size = [size, size]
-            G = nx.grid_2d_graph(m=size[0], n=size[1])
-            pos = dict(zip(G.nodes(), [np.asarray(u) for u in G.nodes()]))
+        elif option['model'] == 'grid_add':
             if subset is not None:
-                node_subset = [G.nodes()[i] for i in subset]
-                latent_vertices = list(set(G.nodes()).difference(node_subset))
-                np.random.seed(seed)
-                dices = np.random.rand(len(G), len(G))
-                for i, v in enumerate(latent_vertices):
-                    neighbors = G[v]
-                    latent_not_neighbors = [s for s in latent_vertices if s not in neighbors]
-                    observed_not_neighbors = [s for s in node_subset if s not in neighbors]
-                    if choice_add_edges_to == 'observed':
-                        for j, u in enumerate(observed_not_neighbors):
-                            if choice_add_edges_how == 'uniform':
-                                if dices[i][j] < prob:
-                                    G.add_edge(v,u)
-                                    G.add_edge(u,v)
-                            elif choice_add_edges_how == 'concentrate':
-                                if dices[i][0] < prob:
-                                    G.add_edge(v,u)
-                                    G.add_edge(u,v)
-                    elif choice_add_edges_to == 'latent':
-                        for j, u in enumerate(latent_not_neighbors):
-                            if choice_add_edges_how == 'uniform':
-                                if dices[i][j] < prob:
-                                    G.add_edge(v,u)
-                                    G.add_edge(u,v)
-                            elif choice_add_edges_how == 'concentrate':
-                                if dices[i][0] < prob:
-                                    G.add_edge(v,u)
-                                    G.add_edge(u,v)
-                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
-                node_sets = []
-                node_sets.append(set(G1.nodes()))
-                node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
-                node_lists = [list(node_sets[0]), list(node_sets[1])]
-            fig1 = plt.figure(1)
-            if node_color is None and subset is None:
-                node_color = ['r']*sum(size)
-            elif subset is not None:
-                node_color = ['r']*len(G)
-                indices = np.argsort(node_lists[0]+node_lists[1])
-                for ii, node in enumerate(G.nodes_iter()):
-                    if ii >= len(G): 
-                        continue
-                    if node in node_lists[1]:
-                        node_color[ii] = 'b'
-            nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='k')
-            filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
-            if save_fig == True:
-                fig1.savefig(filename, format="eps")
+                G, G1, pos, node_lists, node_sets = self._graph_build_grid_add_edges(size, prob, option, subset, node_color, save_fig)
+            else:
+                G, pos = self._graph_build_grid_add_edges(size, prob, option, subset, node_color, save_fig)
 
+        elif option['model'] == 'balanced_tree_add_fixed':
+            if subset is not None:
+                G, G1, pos, node_lists, node_sets = self._graph_build_balanced_tree_add_fixed_edges(size, prob, option, subset, node_color, save_fig)
+            else:
+                G, pos = self._graph_build_balanced_tree_add_fixed_edges(size, prob, option, subset, node_color, save_fig)
+
+        elif option['model'] == 'grid_add_fixed':
+            if subset is not None:
+                G, G1, pos, node_lists, node_sets = self._graph_build_grid_add_fixed_edges(size, prob, option, subset, node_color, save_fig)
+            else:
+                G, pos = self._graph_build_grid_add_fixed_edges(size, prob, option, subset, node_color, save_fig)
 
         #===========================================================================
         G_out = nx.Graph()
@@ -768,10 +357,921 @@ class latent_signal_network:
                 self.G1= G1_out
             self.option = option.copy()
         if subset is None:
-            return G_out
+            return (G_out, pos)
         else: 
             return (G_out, G1_out, pos, node_lists, node_sets)
 
+
+    def _graph_build_partition(self, size, prob, option, subset=None,  node_color=None, save_fig=False):
+        seed = option['seed']
+        if len(prob) < 2:
+            p_in = prob
+            p_out = 1 - p_in
+        
+        [p_in, p_out] = prob
+        G = nx.random_partition_graph(sizes=size, p_in=p_in, p_out=p_out, seed=seed, directed=False)
+        pos = nx.nx_pydot.graphviz_layout(G)
+        # choose sub-network
+        if subset is not None:
+            node_subset = [G.nodes()[i] for i in subset]
+            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            node_sets = []
+            node_sets.append(set(G1.nodes()))
+            node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+            node_lists = [list(node_sets[0]), list(node_sets[1])]
+
+        fig1 = plt.figure(1)
+        if node_color is None and subset is None:
+            node_color = ['r']*size[0]+['b']*size[1]
+        elif subset is not None:
+            node_color = ['r']*len(G)
+            indices = np.argsort(node_lists[0]+node_lists[1])
+            for ii, node in enumerate(G.nodes_iter()):
+                if ii >= len(G): 
+                    continue
+                if node in node_lists[1]:
+                    node_color[ii] = 'b'
+        nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
+        filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+        if save_fig == True:
+            fig1.savefig(filename, format="eps")
+        if subset is not None:
+            return (G, G1, pos, node_lists, node_sets)
+        else:
+            return (G, pos)
+
+    
+    def _graph_build_newman(self, size, prob, option, subset=None, node_color=None, save_fig=False):
+        seed = option['seed']
+        try:
+            k = option['k-NN']
+        except KeyError:
+            k = 2
+
+        if type(size) == list:
+            size = sum(size)
+
+        G=  nx.newman_watts_strogatz_graph(size, k=k, p=prob, seed=seed)
+        pos = nx.circular_layout(G, dim=2, scale=1.0, center=None)
+        if subset is not None:
+            node_subset = [G.nodes()[i] for i in subset]
+            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            node_sets = []
+            node_sets.append(set(G1.nodes()))
+            node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+            node_lists = [list(node_sets[0]), list(node_sets[1])]
+
+        fig1 = plt.figure(1)
+        if node_color is None and subset is None:
+            node_color = ['r']*size
+        elif subset is not None:
+            node_color = ['r']*len(G)
+            indices = np.argsort(node_lists[0]+node_lists[1])
+            for ii, node in enumerate(G.nodes_iter()):
+                if ii >= len(G): 
+                    continue
+                if node in node_lists[1]:
+                    node_color[ii] = 'b'
+
+        nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
+        filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+        if save_fig == True:
+            fig1.savefig(filename, format="eps")
+        if subset is not None:
+            return (G, G1, pos, node_lists, node_sets)
+        else:
+            return (G, pos)
+
+
+    def _graph_build_binomial(self, size, prob, option, subset=None, node_color=None, save_fig=False):
+        seed = option['seed']
+        if prob <= 0.2:
+            G = nx.fast_gnp_random_graph(size, prob, seed=seed)
+        else:
+            G = nx.gnp_random_graph(size, prob, seed=seed)  
+        
+        if not nx.is_connected(G): #must be connected
+            raise ValueError("Not connected. Please increase the edge probability.")
+
+        if type(size) == list:
+            size = sum(size)
+        pos = nx.nx_pydot.graphviz_layout(G)
+        if subset is not None:
+            node_subset = [G.nodes()[i] for i in subset]
+            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            node_sets = []
+            node_sets.append(set(G1.nodes()))
+            node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+            node_lists = [list(node_sets[0]), list(node_sets[1])]
+        fig1 = plt.figure(1)
+        if node_color is None and subset is None:
+            node_color = ['r']*size
+        elif subset is not None:
+            node_color = ['r']*len(G)
+            indices = np.argsort(node_lists[0]+node_lists[1])
+            for ii, node in enumerate(G.nodes_iter()):
+                if ii >= len(G): 
+                    continue
+                if node in node_lists[1]:
+                    node_color[ii] = 'b'
+        nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
+        filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+        if save_fig == True:
+            fig1.savefig(filename, format="eps")
+        if subset is not None:
+            return (G, G1, pos, node_lists, node_sets)
+        else:
+            return (G, pos)
+
+    def _graph_build_power(self, size, prob, option, subset=None, node_color=None, save_fig=False):
+        seed = option['seed']
+        G = nx.powerlaw_cluster_graph(n=size[0], m=size[1], p=prob, seed=seed)
+        pos = nx.nx_pydot.graphviz_layout(G)
+        if subset is not None:
+            node_subset = [G.nodes()[i] for i in subset]
+            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            node_sets = []
+            node_sets.append(set(G1.nodes()))
+            node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+            node_lists = [list(node_sets[0]), list(node_sets[1])]
+        fig1 = plt.figure(1)
+        if node_color is None and subset is None:
+            node_color = ['r']*size
+        elif subset is not None:
+            node_color = ['r']*len(G)
+            indices = np.argsort(node_lists[0]+node_lists[1])
+            for ii, node in enumerate(G.nodes_iter()):
+                if ii >= len(G): 
+                    continue
+                if node in node_lists[1]:
+                    node_color[ii] = 'b'
+        nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
+        filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+        if save_fig == True:
+            fig1.savefig(filename, format="eps")
+        if subset is not None:
+            return (G, G1, pos, node_lists, node_sets)
+        else:
+            return (G, pos)
+
+
+    def _graph_build_grid(self, size, prob, option, subset=None, node_color=None, save_fig=False):
+        if type(size) == int:
+            size = [size, size]
+        G = nx.grid_2d_graph(m=size[0], n=size[1])
+        pos = dict(zip(G.nodes(), [np.asarray(u) for u in G.nodes()]))
+        if subset is not None:
+            xpos, ypos = np.meshgrid(subset[0], subset[1])
+            xpos= xpos.reshape((xpos.size,))
+            ypos= ypos.reshape((ypos.size,))
+            node_subset = list(zip(xpos, ypos))
+            #node_subset = [G.nodes()[i] for i in subset]
+            #print(node_subset)
+            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            node_sets = []
+            node_sets.append(set(G1.nodes()))
+            node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+            node_lists = [list(node_sets[0]), list(node_sets[1])]
+        fig1 = plt.figure(1)
+        if node_color is None and subset is None:
+            node_color = ['r']*sum(size)
+        elif subset is not None:
+            node_color = ['r']*len(G)
+            indices = np.argsort(node_lists[0]+node_lists[1])
+            for ii, node in enumerate(G.nodes_iter()):
+                if ii >= len(G): 
+                    continue
+                if node in node_lists[1]:
+                    node_color[ii] = 'b'
+        nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='k')
+        filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+        if save_fig == True:
+            fig1.savefig(filename, format="eps")
+        if subset is not None:
+            return (G, G1, pos, node_lists, node_sets)
+        else:
+            return (G, pos)
+
+    
+    def _graph_build_tree(self, size, prob, option, subset=None, node_color=None, save_fig=False):
+        seed = option['seed']
+        try:
+            gamma = option['gamma']
+        except KeyError:
+            gamma = 3
+        tries = 10000
+        G = nx.random_powerlaw_tree(n=size, gamma=gamma, seed=seed, tries=tries)
+        pos = nx.circular_layout(G, dim=2, scale=1.0, center=None) #nx.shell_layout(G)#nx.spring_layout(G) #nx.nx_pydot.graphviz_layout(G)
+        if subset is not None:
+            node_subset = subset #[G.nodes()[i] for i in subset]
+            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            node_sets = []
+            node_sets.append(set(G1.nodes()))
+            node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+            node_lists = [list(node_sets[0]), list(node_sets[1])]
+        fig1 = plt.figure(1)
+        if node_color is None and subset is None:
+            node_color = ['r']*size
+        elif subset is not None:
+            node_color = ['r']*len(G)
+            indices = np.argsort(node_lists[0]+node_lists[1])
+            for ii, node in enumerate(G.nodes_iter()):
+                if ii >= len(G): 
+                    continue
+                if node in node_lists[1]:
+                    node_color[ii] = 'b'
+        nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
+        filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+        if save_fig == True:
+            fig1.savefig(filename, format="eps")
+        if subset is not None:
+            return (G, G1, pos, node_lists, node_sets)
+        else:
+            return (G, pos)
+
+
+    def _graph_build_balanced_tree(self, size, prob, option, subset=None, node_color=None, save_fig=False):
+        try:
+            r = option['r']
+        except KeyError:
+            r = 2
+        try:
+            h = option['h']
+        except KeyError:
+            h = 3
+        G = nx.balanced_tree(r=r, h=h, create_using=nx.Graph())
+        pos = nx.nx_pydot.graphviz_layout(G)
+        if subset is not None:
+            node_subset = [G.nodes()[i] for i in subset]
+            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            node_sets = []
+            node_sets.append(set(G1.nodes()))
+            node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+            node_lists = [list(node_sets[0]), list(node_sets[1])]
+        fig1 = plt.figure(1)
+        if node_color is None and subset is None:
+            node_color = ['r']*len(G)
+        elif subset is not None:
+            node_color = ['r']*len(G)
+            indices = np.argsort(node_lists[0]+node_lists[1])
+            for ii, node in enumerate(G.nodes_iter()):
+                if ii >= len(G): 
+                    continue
+                if node in node_lists[1]:
+                    node_color[ii] = 'b'
+        nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=node_color, font_color='w')
+        filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+        if save_fig == True:
+            fig1.savefig(filename, format="eps")
+        if subset is not None:
+            return (G, G1, pos, node_lists, node_sets)
+        else:
+            return (G, pos)
+
+
+    def _graph_build_bipartite_binomial(self, size, prob, option, subset=None, node_color=None, save_fig=False):
+        seed = option['seed']
+        if type(size) == int:
+            size = [10, 10]
+        G = nx.algorithms.bipartite.random_graph(size[0], size[1], prob, seed=seed, directed=False)
+        if subset is None:
+            node_sets = nx.algorithms.bipartite.sets(G)
+            G1 = nx.subgraph(node_sets[0])
+        else:
+            node_subset = [G.nodes()[i] for i in subset]
+            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            node_sets = []
+            node_sets.append(set(G1.nodes()))
+            node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+        node_lists = [list(node_sets[0]), list(node_sets[1])]
+        pos = nx.nx_pydot.graphviz_layout(G, prog='dot')
+        if not nx.is_connected(G): #must be connected
+            raise ValueError("Not connected. Please increase the edge probability.")
+        fig1 = plt.figure(1)
+        if node_color is None and subset is None:
+            node_color = ['r']*size[0]+['b']*size[1]
+        elif subset is not None:
+            node_color = ['r']*len(G)
+            indices = np.argsort(node_lists[0]+node_lists[1])
+            for ii, node in enumerate(G.nodes_iter()):
+                if ii >= len(G): 
+                    continue
+                if node in node_lists[1]:
+                    node_color[ii] = 'b'
+        nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=node_color, font_color='w')
+        filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+        if save_fig == True:
+            fig1.savefig(filename, format="eps")
+        if subset is not None:
+            return (G, G1, pos, node_lists, node_sets)
+        else:
+            return (G, pos)
+
+    def _graph_build_bipartite_uniform(self, size, prob, option, subset=None, node_color=None, save_fig=False):
+        seed = option['seed']
+        if type(size) == int:
+            size = [10, 10]
+
+        try:
+            num_edges = option['num_edges']
+        except KeyError:
+            num_edges = size[0]*size[1]
+ 
+        if num_edges > size[0]*size[1]:
+            print("too many edges. reduce to " + str(size[0]*size[1]))
+            num_edges = size[0]*size[1]
+
+        G = nx.algorithms.bipartite.gnmk_random_graph(size[0], size[1], num_edges, seed=seed, directed=False)
+        if subset is None:
+            node_sets = nx.algorithms.bipartite.sets(G)
+            G1 = nx.subgraph(node_sets[0])
+        else:
+            node_subset = [G.nodes()[i] for i in subset]
+            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            node_sets = []
+            node_sets.append(set(G1.nodes()))
+            node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+        node_lists = [list(node_sets[0]), list(node_sets[1])]
+        pos = nx.nx_pydot.graphviz_layout(G, prog='dot')
+        if not nx.is_connected(G): #must be connected
+            raise ValueError("Not connected. Please increase the edge probability.")
+        fig1 = plt.figure(1)
+        if node_color is None and subset is None:
+            node_color = ['r']*size[0]+['b']*size[1]
+        elif subset is not None:
+            node_color = ['r']*len(G)
+            indices = np.argsort(node_lists[0]+node_lists[1])
+            for ii, node in enumerate(G.nodes_iter()):
+                if ii >= len(G): 
+                    continue
+                if node in node_lists[1]:
+                    node_color[ii] = 'b'
+        nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=node_color, font_color='w')
+        filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+        if save_fig == True:
+            fig1.savefig(filename, format="eps")
+        if subset is not None:
+            return (G, G1, pos, node_lists, node_sets)
+        else:
+            return (G, pos)
+
+
+    def _graph_build_balanced_tree_add_edges(self, size, prob, option, subset=None, node_color=None, save_fig=False):
+        seed = option['seed']
+        try:
+            r = option['r']
+        except KeyError:
+            r = 2
+        try:
+            h = option['h']
+        except KeyError:
+            h = 3
+        try:
+            choice_add_edges_how = option['add_edges_how']  #where to add edges
+        except KeyError:
+            choice_add_edges_how = 'uniform'
+
+        try:
+            choice_add_edges_to = option['add_edges_to']  #how to add edges
+        except KeyError:
+            choice_add_edges_to = 'latent'
+
+
+        G = nx.balanced_tree(r=r, h=h, create_using=nx.Graph())
+        pos = nx.nx_pydot.graphviz_layout(G)
+        if subset is not None:
+            node_subset = [G.nodes()[i] for i in subset]
+            G_tmp=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            latent_vertices = list(set(G.nodes()).difference(G_tmp.nodes()))
+            boundary_vertices = [v for v in G_tmp.nodes() if set(list(G[v].keys())).intersection(set(latent_vertices))]
+            np.random.seed(seed)
+            dices = np.random.rand(len(G), len(G))
+            for i, v in enumerate(latent_vertices):
+                neighbors = G[v]
+                latent_not_neighbors = [s for s in latent_vertices if s not in neighbors]
+                observed_not_neighbors = [s for s in node_subset if s not in neighbors]
+                boundary_not_neighbors = [s for s in boundary_vertices if s not in neighbors]
+                if choice_add_edges_to == 'observed':
+                    for j, u in enumerate(observed_not_neighbors):
+                        if choice_add_edges_how == 'uniform':
+                            if dices[i][j] < prob:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+                        elif choice_add_edges_how == 'concentrate':
+                            if dices[i][0] < prob:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+                elif choice_add_edges_to == 'latent':
+                    for j, u in enumerate(latent_not_neighbors):
+                        if choice_add_edges_how == 'uniform':
+                            if dices[i][j] < prob:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+                        elif choice_add_edges_how == 'concentrate':
+                            if dices[i][0] < prob:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+                elif choice_add_edges_to == 'boundary':
+                    for j, u in enumerate(boundary_not_neighbors):
+                        if choice_add_edges_how == 'uniform':
+                            if dices[i][j] < prob:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+                        elif choice_add_edges_how == 'concentrate':
+                            if dices[i][0] < prob:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            node_sets = []
+            node_sets.append(set(G1.nodes()))
+            node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+            node_lists = [list(node_sets[0]), list(node_sets[1])]
+        fig1 = plt.figure(1)
+        if node_color is None and subset is None:
+            node_color = ['r']*len(G)
+        elif subset is not None:
+            node_color = ['r']*len(G)
+            indices = np.argsort(node_lists[0]+node_lists[1])
+            for ii, node in enumerate(G.nodes_iter()):
+                if ii >= len(G): 
+                    continue
+                if node in node_lists[1]:
+                    node_color[ii] = 'b'
+        nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=node_color, font_color='w')
+        filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+        if save_fig == True:
+            fig1.savefig(filename, format="eps")
+        if subset is not None:
+            return (G, G1, pos, node_lists, node_sets)
+        else:
+            return (G, pos)
+
+
+    def _graph_build_binomial_add_edges(self, size, prob, option, subset=None, node_color=None, save_fig=False):
+        seed = option['seed']
+        if prob <= 0.2:
+            G = nx.fast_gnp_random_graph(size, prob, seed=seed)
+        else:
+            G = nx.gnp_random_graph(size, prob, seed=seed)  
+        
+        if not nx.is_connected(G): #must be connected
+            raise ValueError("Not connected. Please increase the edge probability.")
+        try:
+            choice_add_edges_how = option['add_edges_how']   #how to add edges
+        except KeyError:
+            choice_add_edges_how = 'uniform'
+        try:
+            choice_add_edges_to = option['add_edges_to']   #where to add edges
+        except KeyError:
+            choice_add_edges_to = 'latent'
+
+        if type(size) == list:
+            size = sum(size)
+        pos = nx.nx_pydot.graphviz_layout(G)
+        if subset is not None:
+            prob2 = option['latent_edges_prob']
+
+            node_subset = [G.nodes()[i] for i in subset]
+            G_tmp=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            latent_vertices = list(set(G.nodes()).difference(G_tmp.nodes()))
+            boundary_vertices = [v for v in G_tmp.nodes() if set(list(G[v].keys())).intersection(set(latent_vertices))]
+            #latent_vertices = list(set(G.nodes()).difference(node_subset))
+            np.random.seed(seed)
+            dices = np.random.rand(len(G), len(G))
+            for i, v in enumerate(latent_vertices):
+                neighbors = G[v]
+                latent_not_neighbors = [s for s in latent_vertices if s not in neighbors]
+                observed_not_neighbors = [s for s in node_subset if s not in neighbors]
+                boundary_not_neighbors = [s for s in boundary_vertices if s not in neighbors]
+                if choice_add_edges_to == 'observed':
+                    for j, u in enumerate(observed_not_neighbors):
+                        if choice_add_edges_how == 'uniform':
+                            if dices[i][j] < prob2:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+                        elif choice_add_edges_how == 'concentrate':
+                            if dices[i][0] < prob2:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+                elif choice_add_edges_to == 'latent':
+                    for j, u in enumerate(latent_not_neighbors):
+                        if choice_add_edges_how == 'uniform':
+                            if dices[i][j] < prob2:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+                        elif choice_add_edges_how == 'concentrate':
+                            if dices[i][0] < prob2:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+                elif choice_add_edges_to == 'boundary':
+                    for j, u in enumerate(boundary_not_neighbors):
+                        if choice_add_edges_how == 'uniform':
+                            if dices[i][j] < prob2:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+                        elif choice_add_edges_how == 'concentrate':
+                            if dices[i][0] < prob2:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            node_sets = []
+            node_sets.append(set(G1.nodes()))
+            node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+            node_lists = [list(node_sets[0]), list(node_sets[1])]
+        fig1 = plt.figure(1)
+        if node_color is None and subset is None:
+            node_color = ['r']*size
+        elif subset is not None:
+            node_color = ['r']*len(G)
+            indices = np.argsort(node_lists[0]+node_lists[1])
+            for ii, node in enumerate(G.nodes_iter()):
+                if ii >= len(G): 
+                    continue
+                if node in node_lists[1]:
+                    node_color[ii] = 'b'
+        nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='w')
+        filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+        if save_fig == True:
+            fig1.savefig(filename, format="eps")
+        if subset is not None:
+            return (G, G1, pos, node_lists, node_sets)
+        else:
+            return (G, pos)
+
+
+    def _graph_build_grid_add_edges(self, size, prob, option, subset=None, node_color=None, save_fig=False):
+        seed = option['seed']
+        try:
+            choice_add_edges_how = option['add_edges_how'] # how to add edges
+        except KeyError:
+            choice_add_edges_how = 'uniform'
+        try:
+            choice_add_edges_to = option['add_edges_to']  #where to add edges
+        except KeyError:
+            choice_add_edges_to = 'latent'
+
+        if type(size) == int:
+            size = [size, size]
+        G = nx.grid_2d_graph(m=size[0], n=size[1])
+        pos = dict(zip(G.nodes(), [np.asarray(u) for u in G.nodes()]))
+        if subset is not None:
+            #node_subset = subset #[G.nodes()[i] for i in subset]
+            xpos, ypos = np.meshgrid(subset[0], subset[1])
+            xpos= xpos.reshape((xpos.size,))
+            ypos= ypos.reshape((ypos.size,))
+            node_subset = list(zip(xpos, ypos))
+            G_tmp=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            latent_vertices = list(set(G.nodes()).difference(G_tmp.nodes()))
+            boundary_vertices = [v for v in G_tmp.nodes() if set(list(G[v].keys())).intersection(set(latent_vertices))]
+            #latent_vertices = list(set(G.nodes()).difference(node_subset))
+            np.random.seed(seed)
+            dices = np.random.rand(len(G), len(G))
+            for i, v in enumerate(latent_vertices):
+                neighbors = G[v]
+                latent_not_neighbors = [s for s in latent_vertices if s not in neighbors]
+                observed_not_neighbors = [s for s in node_subset if s not in neighbors]
+                boundary_not_neighbors = [s for s in boundary_vertices if s not in neighbors]
+                if choice_add_edges_to == 'observed':
+                    for j, u in enumerate(observed_not_neighbors):
+                        if choice_add_edges_how == 'uniform':
+                            if dices[i][j] < prob:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+                        elif choice_add_edges_how == 'concentrate':
+                            if dices[i][0] < prob:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+                elif choice_add_edges_to == 'latent':
+                    for j, u in enumerate(latent_not_neighbors):
+                        if choice_add_edges_how == 'uniform':
+                            if dices[i][j] < prob:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+                        elif choice_add_edges_how == 'concentrate':
+                            if dices[i][0] < prob:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+                elif choice_add_edges_to == 'boundary':
+                    for j, u in enumerate(boundary_not_neighbors):
+                        if choice_add_edges_how == 'uniform':
+                            if dices[i][j] < prob:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+                        elif choice_add_edges_how == 'concentrate':
+                            if dices[i][0] < prob:
+                                G.add_edge(v,u)
+                                G.add_edge(u,v)
+            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            node_sets = []
+            node_sets.append(set(G1.nodes()))
+            node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+            node_lists = [list(node_sets[0]), list(node_sets[1])]
+        fig1 = plt.figure(1)
+        if node_color is None and subset is None:
+            node_color = ['r']*sum(size)
+        elif subset is not None:
+            node_color = ['r']*len(G)
+            indices = np.argsort(node_lists[0]+node_lists[1])
+            for ii, node in enumerate(G.nodes_iter()):
+                if ii >= len(G): 
+                    continue
+                if node in node_lists[1]:
+                    node_color[ii] = 'b'
+        nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='k')
+        filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+        if save_fig == True:
+            fig1.savefig(filename, format="eps")
+        if subset is not None:
+            return (G, G1, pos, node_lists, node_sets)
+        else:
+            return (G, pos)
+
+
+
+    def _graph_build_balanced_tree_add_fixed_edges(self, size, prob, option, subset=None, node_color=None, save_fig=False):  
+        seed = option['seed']
+        try:
+            r = option['r']
+        except KeyError:
+            r = 2
+        try:
+            h = option['h']
+        except KeyError:
+            h = 3
+
+        try:
+            choice_add_edges_to = option['add_edges_to']  #how to add edges
+        except KeyError:
+            choice_add_edges_to = 'latent'
+
+        try:
+            choice_add_edges_num = option['add_edges_num']
+        except KeyError:
+            choice_add_edges_num = 3
+
+
+        G = nx.balanced_tree(r=r, h=h, create_using=nx.Graph())
+        pos = nx.nx_pydot.graphviz_layout(G)
+        if subset is not None:
+            node_subset = [G.nodes()[i] for i in subset]
+            G_tmp=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            latent_vertices = list(set(G.nodes()).difference(G_tmp.nodes()))
+            boundary_vertices = [v for v in G_tmp.nodes() if set(list(G[v].keys())).intersection(set(latent_vertices))]
+            if choice_add_edges_num != -1:
+                for i, v in enumerate(latent_vertices):
+                    neighbors = G[v]
+                    latent_not_neighbors = [s for s in latent_vertices if s not in neighbors]
+                    observed_not_neighbors = [s for s in node_subset if s not in neighbors]
+                    boundary_not_neighbors = [s for s in boundary_vertices if s not in neighbors]
+                    if choice_add_edges_to == 'observed':
+                        count = min(choice_add_edges_num, len(observed_not_neighbors))
+                        if count == 0: continue
+                        np.random.seed(seed)
+                        observed_shuffle = list(observed_not_neighbors)
+                        np.random.shuffle(observed_shuffle)
+                        for u in observed_shuffle[:count]:
+                            G.add_edge(v,u)
+                            G.add_edge(u,v)
+                        seed +=1
+                    elif choice_add_edges_to == 'latent':
+                        count = min(choice_add_edges_num, len(latent_not_neighbors))
+                        if count == 0: continue
+                        np.random.seed(seed)
+                        latent_shuffle = list(latent_not_neighbors)
+                        np.random.shuffle(latent_shuffle)
+                        for u in latent_shuffle[:count]:
+                            G.add_edge(v,u)
+                            G.add_edge(u,v)
+                        seed +=1
+                    elif choice_add_edges_to == 'boundary':
+                        count = min(choice_add_edges_num, len(boundary_not_neighbors))
+                        if count == 0: continue
+                        np.random.seed(seed)
+                        boundary_shuffle = list(boundary_not_neighbors)
+                        np.random.shuffle(boundary_shuffle)
+                        for u in boundary_shuffle[:count]:
+                            G.add_edge(v,u)
+                            G.add_edge(u,v)
+                        seed +=1
+            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            node_sets = []
+            node_sets.append(set(G1.nodes()))
+            node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+            node_lists = [list(node_sets[0]), list(node_sets[1])]
+        fig1 = plt.figure(1)
+        if node_color is None and subset is None:
+            node_color = ['r']*len(G)
+        elif subset is not None:
+            node_color = ['r']*len(G)
+            indices = np.argsort(node_lists[0]+node_lists[1])
+            for ii, node in enumerate(G.nodes_iter()):
+                if ii >= len(G): 
+                    continue
+                if node in node_lists[1]:
+                    node_color[ii] = 'b'
+        nx.draw(G, pos=pos, arrows=True, with_labels=True, fontsize= 8, node_color=node_color, font_color='w')
+        filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+        if save_fig == True:
+            fig1.savefig(filename, format="eps")
+        if subset is not None:
+            return (G, G1, pos, node_lists, node_sets)
+        else:
+            return (G, pos)
+
+
+
+    def _graph_build_grid_add_fixed_edges(self, size, prob, option, subset=None, node_color=None, save_fig=False):
+        seed = option['seed']
+        try:
+            choice_add_edges_to = option['add_edges_to']  #where to add edges
+        except KeyError:
+            choice_add_edges_to = 'latent'
+        try:
+            choice_add_edges_num = option['add_edges_num']
+        except KeyError:
+            choice_add_edges_num = 3
+
+        if type(size) == int:
+            size = [size, size]
+        G = nx.grid_2d_graph(m=size[0], n=size[1])
+        pos = dict(zip(G.nodes(), [np.asarray(u) for u in G.nodes()]))
+        if subset is not None:
+            #node_subset = subset #[G.nodes()[i] for i in subset]
+            xpos, ypos = np.meshgrid(subset[0], subset[1])
+            xpos= xpos.reshape((xpos.size,))
+            ypos= ypos.reshape((ypos.size,))
+            node_subset = list(zip(xpos, ypos))
+            G_tmp=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            latent_vertices = list(set(G.nodes()).difference(G_tmp.nodes()))
+            boundary_vertices = [v for v in G_tmp.nodes() if set(list(G[v].keys())).intersection(set(latent_vertices))]
+            #latent_vertices = list(set(G.nodes()).difference(node_subset))
+            if choice_add_edges_num != -1:
+                for i, v in enumerate(latent_vertices):
+                    neighbors = G[v]
+                    latent_not_neighbors = [s for s in latent_vertices if s not in neighbors]
+                    observed_not_neighbors = [s for s in node_subset if s not in neighbors]
+                    boundary_not_neighbors = [s for s in boundary_vertices if s not in neighbors]
+                    if choice_add_edges_to == 'observed':
+                        count = min(choice_add_edges_num, len(observed_not_neighbors))
+                        if count == 0: continue
+                        np.random.seed(seed)
+                        observed_shuffle = list(observed_not_neighbors)
+                        np.random.shuffle(observed_shuffle)
+                        for u in observed_shuffle[:count]:
+                            G.add_edge(v,u)
+                            G.add_edge(u,v)
+                        seed +=1
+                    elif choice_add_edges_to == 'latent':
+                        count = min(choice_add_edges_num, len(latent_not_neighbors))
+                        if count == 0: continue
+                        np.random.seed(seed)
+                        latent_shuffle = list(latent_not_neighbors)
+                        np.random.shuffle(latent_shuffle)
+                        for u in latent_shuffle[:count]:
+                            G.add_edge(v,u)
+                            G.add_edge(u,v)
+                        seed +=1
+                    elif choice_add_edges_to == 'boundary':
+                        count = min(choice_add_edges_num, len(boundary_not_neighbors))
+                        if count == 0: continue
+                        np.random.seed(seed)
+                        boundary_shuffle = list(boundary_not_neighbors)
+                        np.random.shuffle(boundary_shuffle)
+                        for u in boundary_shuffle[:count]:
+                            G.add_edge(v,u)
+                            G.add_edge(u,v)
+                        seed +=1
+            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            node_sets = []
+            node_sets.append(set(G1.nodes()))
+            node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
+            node_lists = [list(node_sets[0]), list(node_sets[1])]
+        fig1 = plt.figure(1)
+        if node_color is None and subset is None:
+            node_color = ['r']*sum(size)
+        elif subset is not None:
+            node_color = ['r']*len(G)
+            indices = np.argsort(node_lists[0]+node_lists[1])
+            for ii, node in enumerate(G.nodes_iter()):
+                if ii >= len(G): 
+                    continue
+                if node in node_lists[1]:
+                    node_color[ii] = 'b'
+        nx.draw(G, pos=pos, arrows=False, with_labels=True, fontsize= 10, node_color=node_color, font_color='k')
+        filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_netTop.eps"
+        if save_fig == True:
+            fig1.savefig(filename, format="eps")
+        if subset is not None:
+            return (G, G1, pos, node_lists, node_sets)
+        else:
+            return (G, pos)
+
+
+
+#==========================================================================================================================================
+    def latent_graph_signal_generate(self, G, G1, node_lists, node_sets, option, nodeIdx=None, sigma=1, show_plot=False, save_fig=False, write_data=False):
+        '''
+            generate observed data on sub-graph G1 from latent vertices
+
+             X1 = A*X2 + z
+             
+             where 
+                  Z, [n_observed, dim], \sim N(0, S*-1) where S*-1 = L_sub, define the local conditional structure
+                  X2, [n_latent, dim],  \sim N(0, sigma*I), independent random vector on latent variables
+                  A, [n_observed, n_latent], define the transformation from Z to X2
+
+                  choose A[i,j] = exp(-kernel_sigma*shortest_path_length(u_i, v_j))
+              
+
+        '''
+        seed = option['seed']
+        dim  = option['node_dim']
+        try:
+            kernel_sigma = option['exp_kernel_sigma']
+        except KeyError:
+            kernel_sigma = 0.5
+
+        Laplacian = nx.normalized_laplacian_matrix(G, weight=None).todense()
+        Adjacency = nx.adjacency_matrix(G, weight=None).todense()
+
+        observed_vertex_set = node_sets[0]
+        latent_vertex_set = node_sets[1]
+        if nodeIdx is None:
+            _, nodeIdx = self.get_node_attributes(G)
+        observed_idx = [item['loc'] for item in nodeIdx if item['node'] in node_sets[0]]
+        hidden_idx = [item['loc'] for item in nodeIdx if item['node'] in node_sets[1]]
+        
+        Laplacian_o = Laplacian[np.ix_(observed_idx, observed_idx)] #- np.diag([len([u for u in G[v] if u in latent_vertex_set]) for v in observed_vertex_set ])
+        eigvals_L1, eigvecs_L1 = np.linalg.eigh(Laplacian_o)
+        eigvecs_L1 = np.asarray(eigvecs_L1)
+        try:
+            eps = option['eps']
+        except KeyError:
+            eps = 1e-4
+
+        nonzeros_indices = np.argwhere(eigvals_L1> 1e-4)
+        transformed_eigvals_L1 = eigvals_L1.copy()
+            #print(eigval[nonzeros_indices])
+        transformed_eigvals_L1[nonzeros_indices] = 1/(eps + transformed_eigvals_L1[nonzeros_indices])
+        # covariance of Z 
+
+        Covariance_z = np.dot(transformed_eigvals_L1*eigvecs_L1, eigvecs_L1.T)
+        #print(Covariance_z.shape)
+        # find all-pair shortest path length 
+        shortest_path_all = nx.all_pairs_dijkstra_path_length(G)
+        K = np.zeros((len(G), len(G)))
+        for item in nodeIdx:
+            v = item['node']
+            ii = item['loc']
+            shortest_path_v = shortest_path_all[v]
+            for u, shortest_path_uv in shortest_path_v.items():
+                jj = min([item2['loc'] for item2 in nodeIdx if item2['node'] == u ])
+                K[ii, jj] = np.exp(- kernel_sigma*shortest_path_uv)
+        # define the transformation matrix from latent to observed data
+        Transform_matrix = np.ascontiguousarray(K[np.ix_(observed_idx, hidden_idx)])
+        # generate observed data
+        if seed is not None:
+            np.random.seed(seed)
+        X2 = sigma*np.random.randn(len(hidden_idx), dim)
+        if seed is not None:
+            np.random.seed((seed+1000)%91)
+        Z =  np.random.multivariate_normal(np.zeros((len(observed_idx),)), Covariance_z, dim).T
+        #print(Z.shape)
+        X1 = np.dot(Transform_matrix, X2) + Z
+
+        X = np.zeros((len(G), dim))
+
+        # write to graph
+        for item in nodeIdx:
+            v = item['node']
+            ii = item['loc']
+            if ii in hidden_idx:
+                jj = hidden_idx.index(ii)
+                X[ii,:] = X2[jj, :]
+                G.node[v]['attributes'] = X[ii,:]
+            elif ii in observed_idx:
+                jj = observed_idx.index(ii)
+                X[ii,:] = X1[jj, :]
+                G.node[v]['attributes'] = X[ii,:]
+        # check 
+        if np.linalg.norm(X[observed_idx,:] - X1) > 1e-3:
+            raise ValueError("Index not correct!")
+
+        if np.linalg.norm(X[hidden_idx,:] - X2) > 1e-3:
+            raise ValueError("Index not correct!")
+
+
+
+        if write_data:
+            self.G = G.copy()
+            self.X = np.copy(X)
+            self.ifwrite = True
+        else:
+            self.ifwrite = False 
+
+
+        return (G, X, X1, X2)
+        
 
 
 
@@ -997,6 +1497,135 @@ class latent_signal_network:
 
         if X0.shape[0] != n: #or X0.shape[1] != dim:
             X0 = np.random.randn(n, dim)
+        
+        if option['method'] == 'l0_threshold':
+            try:
+                tau = option['threshold'] 
+            except KeyError:
+                tau = 1
+            import pywt
+            transformed_eigval = pywt.threshold(eigval, tau, 'hard')
+
+        elif option['method'] == 'l1_threshold':
+            try:
+                tau = option['threshold'] 
+            except KeyError:
+                tau = 1
+            import pywt
+            transformed_eigval = pywt.threshold(eigval, tau, 'soft')
+
+        elif option['method'] == 'polynomial':
+            try:
+                coeffs = option['coeffs']
+            except KeyError:
+                coeffs = [0,1]
+            def poly_fit(coeffs, sig):
+                return sum([p*(sig**i) for i, p in enumerate(coeffs)])
+            transformed_eigval = poly_fit(coeffs, eigval)
+
+        elif option['method'] == 'sigmoid_threshold':
+            try:
+                rate = option['rate']
+            except:
+                rate = 1
+           
+            try:
+                shift = option['shift']
+            except:
+                shift = 0
+
+            try:
+                bias = option['bias']
+            except:
+                bias = 0
+
+            import pywt
+            def sigmoid(x, rate, shift):
+                return 1/(1+np.exp(rate*(x - shift)))
+            
+            transformed_eigval = pywt.threshold(eigval*sigmoid(1+np.arange(len(eigval)), rate, shift), bias, 'soft')
+
+          
+        elif option['method'] == 'l0_renormalize':
+            try:
+                tau = option['threshold'] 
+            except KeyError:
+                tau = 1
+            index_less_l0 = np.where(eigval < tau)
+            index_more_l0 = np.where(eigval >= tau)
+            res = sum(eigval[index_less_l0])/len(eigval[index_more_l0])
+            transformed_eigval = eigval.copy()
+            transformed_eigval[index_less_l0] = 0
+            transformed_eigval[index_more_l0] += res
+
+        elif option['method'] == 'rescale':
+            try:
+               weights = option['weights']            
+            except KeyError:
+               weights = np.ones((len(eigval),))
+
+            transformed_eigval = weights * eigval
+        
+        elif option['method'] == 'inverse_sqrt':
+            try:
+               eps = option['eps']
+            except KeyError:
+               eps = 1e-4
+
+            nonzeros_indices = np.argwhere(eigval> 1e-4)
+            transformed_eigval = eigval.copy()
+            #print(eigval[nonzeros_indices])
+            transformed_eigval[nonzeros_indices] = 1/np.sqrt(eps + transformed_eigval[nonzeros_indices])
+            #transformed_eigval[eigval.argmin()] = 0
+
+        elif option['method'] == 'inverse_poly':
+            try:
+                coeffs = option['coeffs']
+            except KeyError:
+                coeffs = [0,1]
+            def poly_fit(coeffs, sig):
+                return sum([p*(sig**i) for i, p in enumerate(coeffs)])
+            nonzeros_indices = np.argwhere(eigval> 1e-4)
+            transformed_eigval = eigval.copy()
+            #print(eigval[nonzeros_indices])
+            transformed_eigval[nonzeros_indices] = 1/transformed_eigval[nonzeros_indices]
+            transformed_eigval = poly_fit(coeffs, transformed_eigval)
+
+        if show_plot:
+            fig = plt.figure(figsize=(15,6))
+            ax1 = fig.add_subplot(121)
+            (markerline, stemlines, baseline) = plt.stem(np.arange(len(eigval)), eigval, 'b', basefmt='k-')
+#            plt.plot(np.arange(len(eigval)), np.ones((len(eigval, ))), '-r')
+#            if option['mat'] == 'adjacency_matrix':
+#               plt.plot(np.arange(len(eigval)), -np.ones((len(eigval, ))), '-r')
+            plt.xlabel('rank of eigenvalue')
+            plt.ylabel('eigenvalue')
+            ax1.grid(True)
+
+            ax2 = fig.add_subplot(122)
+            (markerline, stemlines, baseline) = plt.stem(np.arange(len(transformed_eigval)), transformed_eigval, 'b', basefmt='k-')
+#            plt.plot(np.arange(len(eigval)), np.ones((len(eigval, ))), '-r')
+            plt.xlabel('rank of eigenvalue')
+            plt.ylabel('eigenvalue')
+            ax2.grid(True)
+            plt.show()
+            filename = "../figures/"+strftime("%d%m%Y_%H%M%S", gmtime()) + "_eigenvalue_transform.eps"
+            if save_fig : fig.savefig(filename)
+
+        return (transformed_eigval, np.asarray(eigvec), eigval) 
+
+
+    def eigen_transform(self, Mat, option, show_plot=False, save_fig=False):
+        eigval_, eigvec_ = np.linalg.eigh(Mat)
+            #for laplacian matrix in increasing order
+        eig_index = np.argsort(eigval_)
+        eigval = eigval_[eig_index]
+            # find the inverse of laplacian
+            #eigval[1:len(eigval)] = 1/eigval[1:len(eigval)]
+        eigvec = eigvec_[:, eig_index]
+            
+
+        n = Mat.shape[0]
         
         if option['method'] == 'l0_threshold':
             try:
