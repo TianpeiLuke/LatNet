@@ -1191,6 +1191,12 @@ class latent_signal_network:
         except KeyError:
             kernel_sigma = 0.5
 
+        try:
+            transform_matrix_type = option['transform_mat_type']
+        except KeyError:
+            transform_matrix_type = 'deterministic'
+
+
         Laplacian = nx.normalized_laplacian_matrix(G, weight=None).todense()
         Adjacency = nx.adjacency_matrix(G, weight=None).todense()
 
@@ -1228,7 +1234,6 @@ class latent_signal_network:
                 jj = min([item2['loc'] for item2 in nodeIdx if item2['node'] == u ])
                 K[ii, jj] = np.exp(- kernel_sigma*shortest_path_uv)
         # define the transformation matrix from latent to observed data
-        Transform_matrix = np.ascontiguousarray(K[np.ix_(observed_idx, hidden_idx)])
         # generate observed data
         if seed is not None:
             np.random.seed(seed)
@@ -1237,6 +1242,12 @@ class latent_signal_network:
             np.random.seed((seed+1000)%91)
         Z =  np.random.multivariate_normal(np.zeros((len(observed_idx),)), Covariance_z, dim).T
         #print(Z.shape)
+        if transform_matrix_type == 'deterministic':
+            Transform_matrix = np.ascontiguousarray(K[np.ix_(observed_idx, hidden_idx)])
+        elif transform_matrix_type == 'random':
+            Transform_matrix = np.random.randn(len(observed_idx), len(hidden_idx))
+            Transform_matrix /= np.linalg.norm(Transform_matrix)
+
         X1 = np.dot(Transform_matrix, X2) + Z
 
         X = np.zeros((len(G), dim))
@@ -1270,7 +1281,7 @@ class latent_signal_network:
             self.ifwrite = False 
 
 
-        return (G, X, X1, X2)
+        return (G, X, X1, X2, Transform_matrix)
         
 
 
