@@ -13,9 +13,10 @@ from sklearn.covariance.empirical_covariance_ import log_likelihood
 import sys
 from inverse_covariance import quic
 from graphical_lasso import *
+from pywt import threshold
 
 
-def dilat_lvggm_ccg_cvx(X_o, alpha=1, gamma=1, beta=1, precision_h=np.eye(5), S_init=None, max_iter=1000, threshold=1e-3, verbose=False):
+def dilat_lvggm_ccg_cvx(X_o, alpha=1, beta=1, gamma=1, mu=10, precision_h=np.eye(5), S_init=None, max_iter=1000, threshold=1e-3, return_hist=False,  verbose=False):
     '''
          A cvx implementation of the Decayed-influence Latent variable Gaussian Graphial Model
 
@@ -32,17 +33,8 @@ def dilat_lvggm_ccg_cvx(X_o, alpha=1, gamma=1, beta=1, precision_h=np.eye(5), S_
             S_t = [Cov(X), -Cov*B*Theta; -Theta*B'*Cov, beta I]
 
     '''
-    n, m = X_o.shape
+    n1, m = X_o.shape
     emp_cov = np.cov(X_o)
-    if alpha == 0 and gamma == 0:
-        if return_costs:
-            precision = np.linalg.pinv(emp_cov)
-            cost = - 2. * log_likelihood(emp_cov, precision)
-            cost += n_features * np.log(2 * np.pi)
-            d_gap = np.sum(emp_cov * precision) - n
-            return emp_cov, precision, (cost, d_gap)
-        else:
-            return emp_cov, np.linalg.pinv(emp_cov)
 
     costs = list()
     if S_init is None:
@@ -57,32 +49,113 @@ def dilat_lvggm_ccg_cvx(X_o, alpha=1, gamma=1, beta=1, precision_h=np.eye(5), S_
     # make the convergence go faster.
 
     covariance_o *= 0.95
-    diagonal_o = emp_cov.flat[::n+1]
-    covariance_o.flat[::n+1] = diagonal_o
-
+    diagonal_o = emp_cov.flat[::n1+1]
+    covariance_o.flat[::n1+1] = diagonal_o
+    precision_o = np.linalg.pinv(covariance_o)
+    # the conditional precision on hidden variables
     n2 = precision_h.shape[0]
+    n  = n1 + n2
+
     eff_rank_h = np.trace(precision_h)/np.linalg.norm(precision_h, 2)
     #while eff_rank_h < 0.3*float(n2):
     #    step = 1e-2
     #    precision_h = precision_h + step*np.eye(n2)
     #    eff_rank_h = np.trace(precision_h)/np.linalg.norm(precision_h, 2)
+
+
     eigvals_h, eigvecs_h = np.linalg.eigh(precision_h)
+    index_sig0 = np.argsort(eigvals_h)
+    eigvals_h = eigvals_h[index_sig0[::-1]]
+    eigvecs_h = eigvecs_h[:,index_sig0[::-1]]
     eigvecs_h = np.asarray(eigvecs_h)
     eps = 1e-4
-
     nonzeros_indices = np.argwhere(eigvals_h> 1e-4)
     transformed_eigvals_h = eigvals_h.copy()
     transformed_eigvals_h[nonzeros_indices] = 1/(eps + transformed_eigvals_h[nonzeros_indices])
     covariance_h = np.dot(transformed_eigvals_h*eigvecs_h, eigvecs_h.T)
 
 
+    # ==========  initialization =============
+    # precision_o_vec = precision_o.reshape((precision_o.size,))
+    # idx_sort = np.argsort(precision_o_vec)[::-1]
+    # tmp=precision_o_vec[idx_sort]
+    # hard_threshold = tmp[18]
+    # S = threshold(precision_o. hard_threshold, 'hard')
+    S = threshold(precision_o, mu*alpha, 'soft')    
+    L = S - precision_o
+    eigvals_Ls, eigvecs_Ls = np.linalg.eigh(L)
+    index_sig1 = np.argsort(eigvals_Ls) #arange in decreasing order
+    eigvals_Ls = eigvals_Ls[index_sig1[::-1]]
+    eigvecs_Ls = eigvecs_Ls[:,index_sig1[::-1]]
+    eigvecs_Ls = np.asarray(eigvecs_Ls)
+    eigvals_Ls = threshold(eigvals_Ls, 1e-3, 'hard') # L is enforced to be psd
+    transformed_eigvals_D = eigvals_h.copy()
+    transformed_eigvals_D = np.sqrt(np.multiply(transformed_eigvals_D, eigvals_Ls[np.arange(n2)]))
+    # transformed_eigvals_D = np.sqrt(transformed_eigvals_D)
+    # D = B*precision_h = U*(sqrt(eigvals_Ls*eigvals_h))*V.T
+    # B = U*sqrt(eigvals_Ls/eigvals_h)*V.T
+    # where  S-precision_o = U*eigvals_Ls*U.T
+    #        precision_h = V*eigvals_h*V.T
+    D1 = np.dot(transformed_eigvals_D*eigvecs_Ls[:,np.arange(n2)], eigvecs_h.T)
+    S_12 = np.dot(-covariance_o, D1)
+    #for t in range(S_12.shape[0]):
+    #    row_t = S_12[t,:]
+    #    if np.linalg.norm(row_t,2) < 
+    # =========
+    cov_all = np.zeros((n,n))
+    cov_all[np.ix_(np.arange(n1), np.arange(n1))] = covariance_o
+    cov_all[np.ix_(np.arange(n1), np.arange(n1, n))] = S_12
+    cov_all[np.ix_(np.arange(n1,n), np.arange(n1))] = S_12.T
+    L_tmp = np.dot(S_12.T, np.dot(precision_o, S_12))
+    eig_max = np.linalg.norm(L_tmp,2)
+    gamma = eig_max+0.1
+    cov_all[np.ix_(np.arange(n1,n), np.arange(n1,n))] = gamma*np.eye(n2)
+    #=================
+    hist_R = list()
+    hist_diff_R = list()
+    if alpha == 0 and gamma == 0:
+        # B = U*sqrt(eigvals_Ls/eigvals_h)*V.T
+        # where  S-precision_o = U*eigvals_Ls*U.T
+        #        precision_h = V*eigvals_h*V.T
+        transformed_eigvals_B = eigvals_h.copy()
+        transformed_eigvals_B[nonzeros_indices] = 1/(eps + transformed_eigvals_B[nonzeros_indices])
+        transformed_eigvals_B = np.sqrt(np.multiply(transformed_eigvals_B, eigvals_Ls[np.arange(n2)])) 
+        B = np.dot(transformed_eigvals_B*eigvecs_Ls[:,np.arange(n2)], eigvecs_h.T)
+        if return_hist:
+            precision = np.linalg.pinv(emp_cov)
+            return (precision, S, B, (hist_R, hist_diff_R))
+        else:
+            return (np.linalg.pinv(emp_cov), S, B)
+
+
     for t in range(max_iter):
-        R = dilat_lvggm_ccg_cvx_sub(S, alpha, gamma, covariance_o, covariance_h, max_iter_in=1000, threshold_in=1e-3, verbose=verbose)
-
-
-
-
-
+        # ============   call sub-routine =================
+        # solve a convex sub-problem 
+        R = dilat_lvggm_ccg_cvx_sub(cov_all, alpha, beta, covariance_o, covariance_h, max_iter_in=1000, threshold_in=1e-3, verbose=verbose)
+        pre_R = R.copy()
+        hist_R.append(R)
+        D2 = np.dot(-covariance_o, R[np.ix_(np.arange(n1), np.arange(n1,n))])
+        D2 = threshold(D2, 1e-3, 'hard')
+        S_12 = np.dot(D2, precision_h)
+        cov_all[np.ix_(np.arange(n1), np.arange(n1, n))] = S_12
+        cov_all[np.ix_(np.arange(n1,n), np.arange(n1))] = S_12.T
+        L_tmp = np.dot(S_12.T, np.dot(precision_o, S_12))
+        eig_max = np.linalg.norm(L_tmp,2)
+        gamma = eig_max+0.1
+        cov_all[np.ix_(np.arange(n1,n), np.arange(n1,n))] = gamma*np.eye(n2)
+        if t > 0:
+            diff_R = np.linalg.norm(R-pre_R, 'fro')
+            hist_diff_R.append(diff_R)
+            if diff_R < threshold:
+                break
+    S = R[np.ix_(np.arange(n1), np.arange(n1))]
+    B = R[np.ix_(np.arange(n1), np.arange(n1,N))]  
+    L = np.dot(B, np.dot(precision_h,B.T))
+    precision_marginal = S - L
+    if return_hist:
+        return (precision_marginal, S, B, (hist_R, hist_diff_R))
+    else:
+        return (precision_marginal, S, B)
     
 def dilat_lvggm_ccg_cvx_sub(S, alpha, beta, covariance, covariance_h, max_iter_in=1000, threshold_in=1e-3, verbose=False):
     '''
