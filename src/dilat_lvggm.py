@@ -220,7 +220,7 @@ def dilat_lvggm_ccg_cvx(X_o, alpha, beta, option, S_init=None, max_iter=10, thre
             if t%4 == 0: fig2.savefig(filename)
 
         S = R[np.ix_(np.arange(n1), np.arange(n1))]
-        if t > 0: print("difference in S = %.3f" % (np.linalg.norm(S-S_list[-1])))
+        i#if t > 0: print("difference in S = %.3f" % (np.linalg.norm(S-S_list[-1])))
         S_list.append(S)
         D2 = np.dot(R[np.ix_(np.arange(n1), np.arange(n1,n))], precision_h)
         if show_plot: 
@@ -277,7 +277,7 @@ def dilat_lvggm_ccg_cvx_sub(S, alpha, beta, covariance_h, precision_h, max_iter_
         The subproblem in Convex-Concave Procedure
 
         
-            min_{R} -log det(R) + trace(R*S_t) + alpha*||[1,0]*R*[1;0]||_1 + gamma*||[-Cov(X), 0]*R*[0;1]||_{1,2} 
+            min_{R} -log det(R) + trace(R*S_t) + alpha*||[1,0]*R*[1;0]||_1 + gamma*||[0, Theta]*R*[1;0]||_{1,2} 
 
                 s.t.   [0,1]*R*[0;1] = Theta^{-1}
 
