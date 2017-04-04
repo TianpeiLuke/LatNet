@@ -18,7 +18,7 @@ from pywt import threshold
 import matplotlib.pyplot as plt
 
 
-def dilat_lvggm_ccg_cvx(X_o, alpha, beta, option, S_init=None, max_iter=1000, threshold_convg=5e-3, show_plot=False, return_hist=False,  verbose=False):
+def dilat_lvggm_ccg_cvx(X_o, alpha, beta, option, S_init=None, max_iter=10, threshold_convg=5e-3, show_plot=False, return_hist=False,  verbose=False):
     '''
          A cvx implementation of the Decayed-influence Latent variable Gaussian Graphial Model
 
@@ -209,16 +209,35 @@ def dilat_lvggm_ccg_cvx(X_o, alpha, beta, option, S_init=None, max_iter=1000, th
             cax = ax.matshow(R)
             fig1.colorbar(cax)
             plt.show()
+            filename = "../figures/"+strftime("%d%m%Y_%H%M%S", gmtime()) + "_R_"+ str(t) + "_alpha_%.2f_beta_%.2f"%(alpha,beta) +  ".eps"
+            if t%4 == 0: fig1.savefig(filename)
             fig2 = plt.figure(2)
             ax = fig2.add_subplot(111)
             cax = ax.matshow(np.sign(abs(threshold(R, 1e-4, 'hard'))))
             fig2.colorbar(cax)
             plt.show()
+            filename = "../figures/"+strftime("%d%m%Y_%H%M%S", gmtime()) + "_R2_"+ str(t) + "_alpha_%.2f_beta_%.2f"%(alpha,beta) + ".eps"
+            if t%4 == 0: fig2.savefig(filename)
 
         S = R[np.ix_(np.arange(n1), np.arange(n1))]
         if t > 0: print("difference in S = %.3f" % (np.linalg.norm(S-S_list[-1])))
         S_list.append(S)
         D2 = np.dot(R[np.ix_(np.arange(n1), np.arange(n1,n))], precision_h)
+        if show_plot: 
+            fig2 = plt.figure(2)
+            ax = fig2.add_subplot(111)
+            cax = ax.matshow(D2)
+            fig2.colorbar(cax)
+            plt.show()
+            filename = "../figures/"+strftime("%d%m%Y_%H%M%S", gmtime()) + "_D1_"+ str(t) + "_alpha_%.2f_beta_%.2f"%(alpha,beta) + ".eps"
+            if t%4 == 0: fig2.savefig(filename)
+            fig3 = plt.figure(3)
+            ax = fig3.add_subplot(111)
+            cax = ax.matshow(np.sign(abs(threshold(D2, 1e-4, 'hard'))), vmin=-0.2, vmax=0.2)
+            fig3.colorbar(cax)
+            plt.show()
+            filename = "../figures/"+strftime("%d%m%Y_%H%M%S", gmtime()) + "_D2_"+ str(t) +  "_alpha_%.2f_beta_%.2f"%(alpha,beta) +".eps"
+            if t%4 == 0: fig3.savefig(filename)
         #D2 = threshold(D2, 1e-3, 'hard')
         S_12 = np.dot(-covariance_o, D2) #+ noise/(np.sqrt(t+1))*np.random.randn(n1,n2)
         cov_all[np.ix_(np.arange(n1), np.arange(n1))] = covariance_o
@@ -296,7 +315,7 @@ def dilat_lvggm_ccg_cvx_sub(S, alpha, beta, covariance_h, precision_h, max_iter_
  
     R = cvx.Semidef(n)
     # define the SDP problem 
-    objective = cvx.Minimize(-cvx.log_det(R) + cvx.trace(S*R) + alpha*cvx.norm((J1.T*R*J1), 1) + beta*cvx.norm( (J1.T*R*Q), 1) )
+    objective = cvx.Minimize(-cvx.log_det(R) + cvx.trace(S*R) + alpha*(cvx.norm((J1.T*R*J1), 1) + beta*cvx.mixed_norm((J1.T*R*Q).T, 2, 1)  ))#beta*cvx.norm( (J1.T*R*Q), 1)) )
     constraints = [J2.T*R*J2 ==  covariance_h]
     # solve the problem
     problem = cvx.Problem(objective, constraints)
