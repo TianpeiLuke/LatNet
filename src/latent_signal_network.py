@@ -13,8 +13,7 @@ from time import gmtime, strftime
 import time
 from sklearn.preprocessing import normalize
 from sklearn.metrics import precision_recall_curve, average_precision_score, auc
-
-
+from collections import deque
 
 def edge_list_convert(Laplacian):
     n = Laplacian.shape[0]
@@ -112,6 +111,29 @@ def extern_graph_draw(G, pos, intern_all_degree_ratio, save_fig=False):
     filename = "../figures/" +  strftime("%d%m%Y_%H%M%S", gmtime()) + "_intern_all_net.eps"
     if save_fig == True:
         fig1.savefig(filename, format="eps")
+
+
+def bfs_sampling(G, init_node_idx, upper_size):
+
+    q = deque([])
+    q.append(init_node_idx)
+    visited = dict()
+    for node in G.nodes():
+        visited[node] = False
+
+    visited[init_node_idx] = True
+    count = 0
+    subset = list()
+    while (count < min(upper_size, len(G)) and len(q)>0): 
+        v = q.popleft()
+        subset.append(v)
+        count += 1
+        neighbors = [s for s in G[v].keys() if not visited[s]]
+        for u in neighbors: 
+            q.append(u)
+            visited[u] = True
+
+    return subset
 
 
 #===============================================================
@@ -247,6 +269,10 @@ class latent_signal_network:
         '''
         seed = option['seed']
         node_dim = option['node_dim']
+        try:
+            sampling_method = option['sampling_method']
+        except KeyError:
+            option['sampling_method'] = 'uniform'
         #===========================================================================
         if option['model'] == 'partition':
             if subset is not None: 
@@ -374,7 +400,13 @@ class latent_signal_network:
         # choose sub-network
         if subset is not None:
             node_subset = [G.nodes()[i] for i in subset]
-            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            if option['sampling_method'] == 'uniform':
+                G1= G.subgraph(node_subset) #sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            else:
+                np.random.seed(seed)
+                init_node = np.random.choice(node_subset, 1)[0]
+                node_subset = bfs_sampling(G,init_node, len(node_subset))
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
             node_sets = []
             node_sets.append(set(G1.nodes()))
             node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
@@ -415,7 +447,13 @@ class latent_signal_network:
         pos = nx.circular_layout(G, dim=2, scale=1.0, center=None)
         if subset is not None:
             node_subset = [G.nodes()[i] for i in subset]
-            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            if option['sampling_method'] == 'uniform':
+                G1= G.subgraph(node_subset)#G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            else:
+                np.random.seed(seed)
+                init_node = np.random.choice(node_subset, 1)[0]
+                node_subset = bfs_sampling(G,init_node, len(node_subset))
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
             node_sets = []
             node_sets.append(set(G1.nodes()))
             node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
@@ -458,7 +496,13 @@ class latent_signal_network:
         pos = nx.nx_pydot.graphviz_layout(G)
         if subset is not None:
             node_subset = [G.nodes()[i] for i in subset]
-            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            if option['sampling_method'] == 'uniform':
+                G1= G.subgraph(node_subset)#G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            else:
+                np.random.seed(seed)
+                init_node = np.random.choice(node_subset, 1)[0]
+                node_subset = bfs_sampling(G,init_node, len(node_subset))
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
             node_sets = []
             node_sets.append(set(G1.nodes()))
             node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
@@ -489,7 +533,13 @@ class latent_signal_network:
         pos = nx.nx_pydot.graphviz_layout(G)
         if subset is not None:
             node_subset = [G.nodes()[i] for i in subset]
-            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            if option['sampling_method'] == 'uniform':
+                G1= G.subgraph(node_subset) #G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            else:
+                np.random.seed(seed)
+                init_node = np.random.choice(node_subset, 1)[0]
+                node_subset = bfs_sampling(G,init_node, len(node_subset))
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
             node_sets = []
             node_sets.append(set(G1.nodes()))
             node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
@@ -516,6 +566,7 @@ class latent_signal_network:
 
 
     def _graph_build_grid(self, size, prob, option, subset=None, node_color=None, save_fig=False):
+        seed = option['seed']
         if type(size) == int:
             size = [size, size]
         G = nx.grid_2d_graph(m=size[0], n=size[1])
@@ -525,9 +576,16 @@ class latent_signal_network:
             xpos= xpos.reshape((xpos.size,))
             ypos= ypos.reshape((ypos.size,))
             node_subset = list(zip(xpos, ypos))
+            if option['sampling_method'] == 'uniform':
+                G1= G.subgraph(node_subset)#G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            else:
+                np.random.seed(seed)
+                init_node_idx = np.random.choice(len(node_subset), 1)[0]
+                init_node = node_subset[init_node_idx]
+                node_subset = bfs_sampling(G,init_node, len(node_subset))
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
             #node_subset = [G.nodes()[i] for i in subset]
             #print(node_subset)
-            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
             node_sets = []
             node_sets.append(set(G1.nodes()))
             node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
@@ -564,7 +622,13 @@ class latent_signal_network:
         pos = nx.circular_layout(G, dim=2, scale=1.0, center=None) #nx.shell_layout(G)#nx.spring_layout(G) #nx.nx_pydot.graphviz_layout(G)
         if subset is not None:
             node_subset = subset #[G.nodes()[i] for i in subset]
-            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            if option['sampling_method'] == 'uniform':
+                G1= G.subgraph(node_subset)#G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            else:
+                np.random.seed(seed)
+                init_node = np.random.choice(node_subset, 1)[0]
+                node_subset = bfs_sampling(G,init_node, len(node_subset))
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
             node_sets = []
             node_sets.append(set(G1.nodes()))
             node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
@@ -591,6 +655,7 @@ class latent_signal_network:
 
 
     def _graph_build_balanced_tree(self, size, prob, option, subset=None, node_color=None, save_fig=False):
+        seed = option['seed']
         try:
             r = option['r']
         except KeyError:
@@ -603,7 +668,13 @@ class latent_signal_network:
         pos = nx.nx_pydot.graphviz_layout(G)
         if subset is not None:
             node_subset = [G.nodes()[i] for i in subset]
-            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            if option['sampling_method'] == 'uniform':
+                G1= G.subgraph(node_subset)#G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            else:
+                np.random.seed(seed)
+                init_node = np.random.choice(node_subset, 1)[0]
+                node_subset = bfs_sampling(G,init_node, len(node_subset))
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
             node_sets = []
             node_sets.append(set(G1.nodes()))
             node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
@@ -781,7 +852,13 @@ class latent_signal_network:
                             if dices[i][0] < prob:
                                 G.add_edge(v,u)
                                 G.add_edge(u,v)
-            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            if option['sampling_method'] == 'uniform':
+                G1= G.subgraph(node_subset)#G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            else:
+                np.random.seed(seed)
+                init_node = np.random.choice(node_subset, 1)[0]
+                node_subset = bfs_sampling(G,init_node, len(node_subset))
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
             node_sets = []
             node_sets.append(set(G1.nodes()))
             node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
@@ -873,7 +950,13 @@ class latent_signal_network:
                             if dices[i][0] < prob2:
                                 G.add_edge(v,u)
                                 G.add_edge(u,v)
-            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            if option['sampling_method'] == 'uniform':
+                G1= G.subgraph(node_subset)#G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            else:
+                np.random.seed(seed)
+                init_node = np.random.choice(node_subset, 1)[0]
+                node_subset = bfs_sampling(G,init_node, len(node_subset))
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
             node_sets = []
             node_sets.append(set(G1.nodes()))
             node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
@@ -961,7 +1044,14 @@ class latent_signal_network:
                             if dices[i][0] < prob:
                                 G.add_edge(v,u)
                                 G.add_edge(u,v)
-            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            if option['sampling_method'] == 'uniform':
+               G1= G.subgraph(node_subset) #G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            else:
+                np.random.seed(seed)
+                init_node_idx = np.random.choice(len(node_subset), 1)[0]
+                init_node = node_subset[init_node_idx]
+                node_subset = bfs_sampling(G,init_node, len(node_subset))
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
             node_sets = []
             node_sets.append(set(G1.nodes()))
             node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
@@ -1053,7 +1143,13 @@ class latent_signal_network:
                             G.add_edge(v,u)
                             G.add_edge(u,v)
                         seed +=1
-            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            if option['sampling_method'] == 'uniform':
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            else:
+                np.random.seed(seed)
+                init_node = np.random.choice(node_subset, 1)[0]
+                node_subset = bfs_sampling(G,init_node, len(node_subset))
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
             node_sets = []
             node_sets.append(set(G1.nodes()))
             node_sets.append(set(G.nodes()).difference(set(G1.nodes())))
@@ -1141,7 +1237,14 @@ class latent_signal_network:
                             G.add_edge(v,u)
                             G.add_edge(u,v)
                         seed +=1
-            G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            if option['sampling_method'] == 'uniform':
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
+            else:
+                np.random.seed(seed)
+                init_node_idx = np.random.choice(len(node_subset), 1)[0]
+                init_node = node_subset[init_node_idx]
+                node_subset = bfs_sampling(G,init_node, len(node_subset))
+                G1=sorted(nx.connected_component_subgraphs(G.subgraph(node_subset)), key = len, reverse=True)[0]
             node_sets = []
             node_sets.append(set(G1.nodes()))
             node_sets.append(set(G.nodes()).difference(set(G1.nodes())))

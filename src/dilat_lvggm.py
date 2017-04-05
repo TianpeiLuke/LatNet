@@ -220,7 +220,7 @@ def dilat_lvggm_ccg_cvx(X_o, alpha, beta, option, S_init=None, max_iter=10, thre
             if t%4 == 0: fig2.savefig(filename)
 
         S = R[np.ix_(np.arange(n1), np.arange(n1))]
-        i#if t > 0: print("difference in S = %.3f" % (np.linalg.norm(S-S_list[-1])))
+        #if t > 0: print("difference in S = %.3f" % (np.linalg.norm(S-S_list[-1])))
         S_list.append(S)
         D2 = np.dot(R[np.ix_(np.arange(n1), np.arange(n1,n))], precision_h)
         if show_plot: 
