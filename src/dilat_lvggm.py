@@ -385,6 +385,9 @@ def dilat_lvggm_ccg_admm(X_o, alpha, beta, option, S_init=None, max_iter=10, thr
 
     if precision_h_type == 'diag':
         precision_h = np.diag(np.diag(precision_h))#precision_h[np.diag_indices(precision_h.shape[0])]
+    elif precision_h_type == 'eig':
+        eigvals_h, _ = np.linalg.eigh(precision_h)
+        precision_h = np.diag(eigvals_h) 
 
     #
     n1, m = X_o.shape
@@ -472,12 +475,16 @@ def dilat_lvggm_ccg_admm(X_o, alpha, beta, option, S_init=None, max_iter=10, thr
     eigvals_Ls, eigvecs_Ls = np.linalg.eigh(L)
     index_sig1 = np.argsort(eigvals_Ls)[::-1] #arange in decreasing order
     eigvals_Ls = eigvals_Ls[index_sig1]
+    #print(len(eigvals_Ls))
     eigvecs_Ls = eigvecs_Ls[:,index_sig1]
     eigvecs_Ls = np.asarray(eigvecs_Ls)
     # enforce eig >= 0
     eigvals_Ls = threshold(eigvals_Ls, 1e-3, 'greater') # L is enforced to be psd
     transformed_eigvals_D = eigvals_h.copy()
-    transformed_eigvals_D = np.sqrt(np.multiply(transformed_eigvals_D, eigvals_Ls[np.arange(n2)]))
+    if n1 > n2 :
+        transformed_eigvals_D = np.sqrt(np.multiply(transformed_eigvals_D, eigvals_Ls[np.arange(n2)]))
+    else:
+        transformed_eigvals_D = np.sqrt(np.multiply(transformed_eigvals_D[np.arange(n1)], eigvals_Ls))
     # transformed_eigvals_D = np.sqrt(transformed_eigvals_D)
     # D = B*precision_h = U*(sqrt(eigvals_Ls*eigvals_h))*V.T
     # B = U*sqrt(eigvals_Ls/eigvals_h)*V.T
@@ -486,7 +493,10 @@ def dilat_lvggm_ccg_admm(X_o, alpha, beta, option, S_init=None, max_iter=10, thr
     try:
         D1 = option['cross_init']
     except KeyError:
-        D1 = np.dot(transformed_eigvals_D*eigvecs_Ls[:,np.arange(n2)], eigvecs_h.T)
+        if n1 > n2:
+            D1 = np.dot(transformed_eigvals_D*eigvecs_Ls[:,np.arange(n2)], eigvecs_h.T)
+        else:
+            D1 = np.dot(transformed_eigvals_D*eigvecs_Ls, eigvecs_h[:,np.arange(n1)].T)
     if verbose: print("construct off diagonal terms. size %d x %d" % D1.shape)
     S_12 = np.dot(-covariance_o, D1)
     # ========= construct parameters ==================================
@@ -520,9 +530,12 @@ def dilat_lvggm_ccg_admm(X_o, alpha, beta, option, S_init=None, max_iter=10, thr
     for t in range(max_iter):
         # ============   call sub-routine =================
         # solve a convex sub-problem
-        if precision_h_type == 'diag': 
+        if precision_h_type == 'diag' or precision_h_type == 'eig':
             R,_ = dilat_lvggm_ccg_sub_admm_diag(cov_all, alpha, beta, covariance_h, precision_h, mu=1,  max_iter_in=1000, threshold_in=1e-3, return_costs=False, verbose=verbose)
-        
+        else:
+            R,_ = dilat_lvggm_ccg_sub_admm_full(cov_all, alpha, beta, covariance_h, precision_h, mu=1,  max_iter_in=1000, threshold_in=1e-3, return_costs=False, verbose=verbose)
+
+
         if show_plot:        
             fig1 = plt.figure(1)
             ax = fig1.add_subplot(111)
@@ -570,7 +583,7 @@ def dilat_lvggm_ccg_admm(X_o, alpha, beta, option, S_init=None, max_iter=10, thr
         
         if t > 0:
             diff_R = np.linalg.norm(R-pre_R, 'fro')
-            print("|        %.4f           |" % (diff_R))
+            if verbose: print("|        %.4f           |" % (diff_R))
 
             hist_diff_R.append(diff_R)
             pre_R = R.copy()
@@ -578,7 +591,7 @@ def dilat_lvggm_ccg_admm(X_o, alpha, beta, option, S_init=None, max_iter=10, thr
             if t > 1 and diff_R < threshold_convg:
                 break
         else:
-            print("|  difference between R |")
+            if verbose: print("|  difference between R |")
             pre_R = R.copy()
             hist_R.append(R)
     S = R[np.ix_(np.arange(n1), np.arange(n1))]
@@ -631,6 +644,37 @@ def _prox_W_lvggm_admm(Z, beta=1, xi=1):
         tmp_row = tmp_weight*tmp
         result[i,:] = tmp_row
     return result
+
+def _prox_P_lvggm_admm(Z, Z_w, Theta, xi=1, xi_w=1):
+    '''
+        solves for proximal minimization
+
+            min_P 0.5||P- Z||**2/xi + 0.5*||P-Theta*Z_w||**2/xi_w
+
+    '''
+    s = float(xi/xi_w)
+    eigval, eigvec = np.linalg.eigh(Theta)
+    eigvec = np.asarray(eigvec)
+    index_sig = np.argsort(eigval)[::-1]
+    eigval = eigval[index_sig]
+    eigvec = eigvec[:,index_sig]
+    def eig_l2_Z(eigval, s):
+        return (1/(1+s*eigval**2))
+    def eig_l2_Z_w(eigval, s):
+        return (s*eigval/(1+s*eigval**2))
+
+    eig_Z_vec = np.vectorize(eig_l2_Z)
+    eig_Z_w_vec = np.vectorize(eig_l2_Z_w)
+    
+    eigval_trans_Z = eig_Z_vec(eigval, s)
+    eigval_trans_Z_w = eig_Z_w_vec(eigval, s)
+
+
+    Z_trans = np.dot(eigval_trans_Z*eigvec, np.dot(eigvec.T, Z))
+    Z_w_trans = np.dot(eigval_trans_Z_w*eigvec, np.dot(eigvec.T, Z_w))
+
+    return (Z_trans + Z_w_trans)
+
 #---------------------------------------------------------------
 
 def dilat_lvggm_ccg_sub_admm_diag(S, alpha, beta, covariance_h, precision_h, mu=1, max_iter_in=1000, threshold_in=1e-3, init_R=None, return_costs=False, verbose=False):
@@ -651,6 +695,7 @@ def dilat_lvggm_ccg_sub_admm_diag(S, alpha, beta, covariance_h, precision_h, mu=
 
     covariance_h = np.diag(np.diag(covariance_h))
     precision_h = np.diag(np.diag(precision_h))
+    
     # initialization
     R = np.zeros((n,n))
     if init_R is None:
@@ -694,7 +739,8 @@ def dilat_lvggm_ccg_sub_admm_diag(S, alpha, beta, covariance_h, precision_h, mu=
         diff_pre = np.linalg.norm(R-R_pre) + np.linalg.norm(P-P_pre)
         constraint_loss = np.linalg.norm(R-P)
 
-        row_l2_norm = np.dot(R[np.ix_(np.arange(n1,n), np.arange(n1))], R[np.ix_(np.arange(n1), np.arange(n1,n))])
+        tmp = np.dot(precision_h, R[np.ix_(np.arange(n1,n), np.arange(n1))])
+        row_l2_norm = np.dot(tmp, tmp.T)
         l12_norm = np.sqrt(np.diag(row_l2_norm))
         cost = -2. * log_likelihood(S, R) + alpha*(np.abs(R[np.ix_(np.arange(n1), np.arange(n1))]).sum() - np.abs(np.diag(R[np.ix_(np.arange(n1), np.arange(n1))])).sum()) + beta*l12_norm.sum()
         if return_costs:
@@ -718,6 +764,114 @@ def dilat_lvggm_ccg_sub_admm_diag(S, alpha, beta, covariance_h, precision_h, mu=
         return (R, P)
         
        
+def dilat_lvggm_ccg_sub_admm_full(S, alpha, beta, covariance_h, precision_h, mu=1, mu_w=1, max_iter_in=1000, threshold_in=1e-3, init_R=None, return_costs=False, verbose=False):
+
+    '''
+         implementation of sub-routine of the DiLat-GGM using ADMM where precision_h is full positive definite matrix
+    '''
+    if np.linalg.norm(S-S.T) > 1e-3:
+        raise ValueError("Covariance matrix should be symmetric.")
+
+    n = S.shape[0]
+    #n1 = covariance.shape[0]
+    n2 = covariance_h.shape[0]
+    n1 = n - n2
+    #if n != (n1+n2):
+    if n1 < 0:
+        raise ValueError("dimension mismatch n=%d, n1=%d, n2=%d" % (n,n1,n2))
+
+    eigvals_h, eigvecs_h = np.linalg.eigh(precision_h)
+    index_sig0 = np.argsort(eigvals_h)
+    eigvals_h = eigvals_h[index_sig0[::-1]]
+    eigvecs_h = eigvecs_h[:,index_sig0[::-1]]
+    eigvecs_h = np.asarray(eigvecs_h)
+    # initialization
+    R = np.zeros((n,n))
+    if init_R is None:
+        R[np.ix_(np.arange(n1,n), np.arange(n1,n))] = covariance_h.copy()
+        tmp = np.random.randn(n1,n2)
+        max_eig = np.linalg.norm(( np.dot(tmp, np.dot(precision_h, tmp.T)) ),2)
+        R[np.ix_(np.arange(n1), np.arange(n1, n))] = tmp
+        R[np.ix_(np.arange(n1,n), np.arange(n1))] = tmp.T
+        R[np.ix_(np.arange(n1), np.arange(n1))] = (max_eig+0.1)*np.eye(n1)
+    else:
+        R = init_R.copy()
+ 
+    P = np.zeros((n,n))
+    P = R.copy()
+    Lambda = np.zeros((n, n))
+
+    P21 = P[np.ix_(np.arange(n1,n), np.arange(n1))].copy()
+    W = np.zeros((n2, n1))
+    W = np.dot(precision_h, P21)
+    Lambda_w = np.zeros((n2, n1))
+
+    cost_hists = list()
+    diff_pre_hists = list()
+    constraint_loss_hists = list()
+   
+ 
+    for t in range(max_iter_in):
+        R_pre = R
+        P_pre = P
+        W_pre = W
+
+        T = R + mu*Lambda
+        # proxmial on Sparsity 
+        P1 = _prox_S_lvgmm_admm(T[np.ix_(np.arange(n1), np.arange(n1))], alpha, mu)
+
+        #================= for row sparsity ============================
+        # proximal on row sparisty
+
+        V = np.dot(precision_h, P21) - mu_w*Lambda_w
+        W = _prox_W_lvggm_admm(V, beta, mu_w)
+
+        U = W + mu_w*Lambda_w
+
+        P21 = _prox_P_lvggm_admm(T[np.ix_(np.arange(n1,n), np.arange(n1))], U, precision_h, mu, mu_w)
+        
+        # update Lambda_w
+        Lambda_w = Lambda_w + 1/(mu_w)*(W - np.dot(precision_h, P21))
+
+        #===============================================================
+        # update
+        P[np.ix_(np.arange(n1), np.arange(n1))] = P1.copy()
+        P[np.ix_(np.arange(n1,n), np.arange(n1))] = P21.copy()
+        P[np.ix_(np.arange(n1), np.arange(n1,n))] = P21.copy().T
+        P[np.ix_(np.arange(n1,n), np.arange(n1,n))] = covariance_h.copy()
+        
+        Q = P - mu*Lambda
+        # proximal on R
+        R = _prox_R_lvgmm_admm(S, Q, mu)
+        # update dual variables
+        Lambda = Lambda + 1/mu*(R - P)
+
+        diff_pre = np.linalg.norm(R-R_pre) + np.linalg.norm(P-P_pre) + np.linalg.norm(W-W_pre)
+        constraint_loss = np.linalg.norm(R-P) + np.linalg.norm(W - np.dot(precision_h, P[np.ix_(np.arange(n1,n), np.arange(n1))]))
+
+        tmp = np.dot(precision_h, R[np.ix_(np.arange(n1,n), np.arange(n1))])
+        row_l2_norm = np.dot(tmp, tmp.T)
+        l12_norm = np.sqrt(np.diag(row_l2_norm))
+        cost = -2. * log_likelihood(S, R) + alpha*(np.abs(R[np.ix_(np.arange(n1), np.arange(n1))]).sum() - np.abs(np.diag(R[np.ix_(np.arange(n1), np.arange(n1))])).sum()) + beta*l12_norm.sum()
+        if return_costs:
+            cost_hists.append(cost)
+            constraint_loss_hists.append(constraint_loss)
+            diff_pre_hists.append(diff_pre)
+
+        if verbose:
+            if t == 0:
+                print("iterations | cost  | succ-diff | constraint-loss |")
+            
+            print("    %d     |  %.4f |  %.4f     |      %.4f       |" \
+                       % (t, cost, diff_pre, constraint_loss))
+        if diff_pre/3 < threshold_in and constraint_loss < threshold_in:
+            if verbose: print("optimal solution found.")
+            break
+
+    if return_costs:
+        return (R, P, cost_hists, constraint_loss_hists, diff_pre_hists)
+    else:
+        return (R, P)
  #def latent_variable_gmm_cvx_v2(X_o, alpha=1, gamma= 1, beta=1, S_init=None, verbose=False):
  #    '''
  #          A cvx implementation of  the Latent Variable Gaussian Graphical Model 
