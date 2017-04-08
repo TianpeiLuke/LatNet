@@ -373,10 +373,15 @@ def dilat_lvggm_ccg_admm(X_o, alpha, beta, option, S_init=None, max_iter=10, thr
         except KeyError:
             sparsify_hard_nonzeros = 10
 
+    #try:
+    #    noise = option['noise_level']
+    #except KeyError:
+    #    noise = 0
+
     try:
-        noise = option['noise_level']
+        threshold_in = option['threshold_in']
     except KeyError:
-        noise = 0
+        threshold_in = 1e-4
 
     try:
         precision_h_type = option['precision_h_type']
@@ -531,9 +536,9 @@ def dilat_lvggm_ccg_admm(X_o, alpha, beta, option, S_init=None, max_iter=10, thr
         # ============   call sub-routine =================
         # solve a convex sub-problem
         if precision_h_type == 'diag' or precision_h_type == 'eig':
-            R,_ = dilat_lvggm_ccg_sub_admm_diag(cov_all, alpha, beta, covariance_h, precision_h, mu=1,  max_iter_in=1000, threshold_in=1e-3, return_costs=False, verbose=verbose)
+            R,_ = dilat_lvggm_ccg_sub_admm_diag(cov_all, alpha, beta*alpha, covariance_h, precision_h, mu=1,  max_iter_in=1000, threshold_in=threshold_in, return_costs=False, verbose=verbose)
         else:
-            R,_ = dilat_lvggm_ccg_sub_admm_full(cov_all, alpha, beta, covariance_h, precision_h, mu=1,  max_iter_in=1000, threshold_in=1e-3, return_costs=False, verbose=verbose)
+            R,_,_ = dilat_lvggm_ccg_sub_admm_full(cov_all, alpha, beta*alpha, covariance_h, precision_h, mu=1, mu_w=1, max_iter_in=1000, threshold_in=threshold_in, return_costs=False, verbose=verbose)
 
 
         if show_plot:        
@@ -599,9 +604,9 @@ def dilat_lvggm_ccg_admm(X_o, alpha, beta, option, S_init=None, max_iter=10, thr
     L = np.dot(B, np.dot(precision_h,B.T))
     precision_marginal = S - L
     if return_hist:
-        return (precision_marginal, S, B, (hist_R, hist_diff_R))
+        return (precision_marginal, threshold(S, 1e-5, 'hard'), B, (hist_R, hist_diff_R))
     else:
-        return (precision_marginal, S, B)
+        return (precision_marginal, threshold(S, 1e-5, 'hard'), B)
 
 #-----------------------------------------------------------------
 def _prox_R_lvgmm_admm(emp_cov, Z, xi=1):
@@ -677,7 +682,7 @@ def _prox_P_lvggm_admm(Z, Z_w, Theta, xi=1, xi_w=1):
 
 #---------------------------------------------------------------
 
-def dilat_lvggm_ccg_sub_admm_diag(S, alpha, beta, covariance_h, precision_h, mu=1, max_iter_in=1000, threshold_in=1e-3, init_R=None, return_costs=False, verbose=False):
+def dilat_lvggm_ccg_sub_admm_diag(S, alpha, beta, covariance_h, precision_h, mu=1, max_iter_in=1000, threshold_in=1e-6, init_R=None, return_costs=False, verbose=False):
 
     '''
          implementation of sub-routine of the DiLat-GGM using ADMM where precision_h is diagonal
@@ -752,7 +757,7 @@ def dilat_lvggm_ccg_sub_admm_diag(S, alpha, beta, covariance_h, precision_h, mu=
             if t == 0:
                 print("iterations | cost  | succ-diff | constraint-loss |")
             
-            print("    %d     |  %.4f |  %.4f     |      %.4f       |" \
+            print("    %d     |  %.4e |  %.4e     |      %.4e       |" \
                        % (t, cost, diff_pre, constraint_loss))
         if diff_pre/3 < threshold_in and constraint_loss < threshold_in:
             if verbose: print("optimal solution found.")
@@ -764,7 +769,7 @@ def dilat_lvggm_ccg_sub_admm_diag(S, alpha, beta, covariance_h, precision_h, mu=
         return (R, P)
         
        
-def dilat_lvggm_ccg_sub_admm_full(S, alpha, beta, covariance_h, precision_h, mu=1, mu_w=1, max_iter_in=1000, threshold_in=1e-3, init_R=None, return_costs=False, verbose=False):
+def dilat_lvggm_ccg_sub_admm_full(S, alpha, beta, covariance_h, precision_h, mu=1, mu_w=1, max_iter_in=1000, threshold_in=1e-6, init_R=None, return_costs=False, verbose=False):
 
     '''
          implementation of sub-routine of the DiLat-GGM using ADMM where precision_h is full positive definite matrix
@@ -862,16 +867,16 @@ def dilat_lvggm_ccg_sub_admm_full(S, alpha, beta, covariance_h, precision_h, mu=
             if t == 0:
                 print("iterations | cost  | succ-diff | constraint-loss |")
             
-            print("    %d     |  %.4f |  %.4f     |      %.4f       |" \
+            print("    %d     |  %.4e |  %.4e     |      %.4e       |" \
                        % (t, cost, diff_pre, constraint_loss))
         if diff_pre/3 < threshold_in and constraint_loss < threshold_in:
             if verbose: print("optimal solution found.")
             break
 
     if return_costs:
-        return (R, P, cost_hists, constraint_loss_hists, diff_pre_hists)
+        return (R, P, W,  cost_hists, constraint_loss_hists, diff_pre_hists)
     else:
-        return (R, P)
+        return (R, P, W)
  #def latent_variable_gmm_cvx_v2(X_o, alpha=1, gamma= 1, beta=1, S_init=None, verbose=False):
  #    '''
  #          A cvx implementation of  the Latent Variable Gaussian Graphical Model 
