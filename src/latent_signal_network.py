@@ -136,6 +136,31 @@ def bfs_sampling(G, init_node_idx, upper_size):
     return subset
 
 
+def effective_rank(A):
+    return np.trace(A)/np.linalg.norm(A,2)
+
+def rank_smoothing(A, rate, shift=0):
+    n,m = A.shape
+    if n != m:
+        raise ValueError("Matrix A should be square. dimension %d x %d" % (n,m))
+
+    if np.linalg.norm(A-A.T) > 1e-3:
+        raise ValueError("Matrix A should be square and symmetric")
+    eigvals, eigvecs = np.linalg.eigh(A)
+    index_sig0 = np.argsort(eigvals)[::-1]
+    eigvals = eigvals[index_sig0]
+    eigvecs = eigvecs[:, index_sig0]
+    eigvecs = np.asarray(eigvecs)
+
+    def sigmoid(x, rate, shift):
+        return 1/(1+np.exp(rate*(x-shift)))
+
+    transformed_eigvals = eigvals*sigmoid(1+np.arange(len(eigvals)), rate, shift)
+
+    return np.dot(transformed_eigvals*eigvecs, eigvecs.T)
+
+    
+
 #===============================================================
 class latent_signal_network:
 

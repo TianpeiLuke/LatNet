@@ -388,12 +388,19 @@ def dilat_lvggm_ccg_admm(X_o, alpha, beta, option, S_init=None, max_iter=10, thr
     except KeyError:
         precision_h_type = 'diag'
 
+    if verbose: print("input precision type %s" % (precision_h_type))
     if precision_h_type == 'diag':
         precision_h = np.diag(np.diag(precision_h))#precision_h[np.diag_indices(precision_h.shape[0])]
     elif precision_h_type == 'eig':
         eigvals_h, _ = np.linalg.eigh(precision_h)
         precision_h = np.diag(eigvals_h) 
 
+    if show_plot:
+        fig1 = plt.figure(1)
+        ax = fig1.add_subplot(111)
+        cax = ax.matshow(precision_h)
+        fig1.colorbar(cax)
+        plt.show()
     #
     n1, m = X_o.shape
     emp_cov = np.cov(X_o)
